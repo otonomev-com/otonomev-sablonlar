@@ -1,0 +1,47 @@
+blueprint:
+  name: Gün batımında ışıkları aç
+  description: >-
+    Güneş batınca seçtiğin ışıkları açar. İstersen ışıklar gün batımından biraz önce ya da sonra yanar.
+    Gün batımı saatini Home Assistant evinin konumuna göre her gün kendisi hesaplar.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/gun-batiminda-isik/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/gun-batiminda-isik.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    isiklar:
+      name: Işıklar
+      description: Gün batınca yanacak ışıklar. Akıllı anahtar, röle ya da akıllı priz de seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain:
+                - light
+                - switch
+    zaman_farki:
+      name: Zaman farkı
+      description: >-
+        Işıklar tam gün batımında mı yansın, yoksa önce ya da sonra mı? Önce ya da Sonra'yı seçip süreyi yaz.
+        Boş bırakırsan tam gün batımında yanar.
+      default:
+        hours: 0
+        minutes: 0
+        seconds: 0
+      selector:
+        duration:
+          mode: offset
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: sun
+    event: sunset
+    offset: !input zaman_farki
+
+actions:
+  - action: homeassistant.turn_on
+    target:
+      entity_id: !input isiklar

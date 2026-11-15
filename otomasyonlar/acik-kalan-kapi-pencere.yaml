@@ -1,0 +1,17 @@
+alias: Kapı açık kaldı
+description: Kapı 10 dakikadan uzun açık kalırsa telefona bildirim gönderir. (OtonomEv, O3)
+mode: queued
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.balkon_kapisi   # (kendi kapı ya da pencere sensörünün varlık kimliği)
+    from: "off"
+    to: "on"
+    for:
+      minutes: 10   # (kaç dakika açık kalınca haber versin)
+conditions: []
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      message: "{{ trigger.to_state.name }} açık kaldı."

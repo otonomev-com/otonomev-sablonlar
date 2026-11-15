@@ -1,0 +1,23 @@
+alias: Evden son kişi çıkınca her şeyi kapat
+description: Evdeki son kişi de çıkınca 10 dakika bekler; bütün ışıkları ve prizi kapatır, telefona haber verir. (OtonomEv, O6)
+mode: single
+triggers:
+  - trigger: state
+    entity_id: zone.home   # (evde kaç kişi olduğunu tutan "Ev" bölgesi)
+    to: "0"
+    for:
+      minutes: 10   # (son kişi çıktıktan sonra kaç dakika beklensin)
+conditions: []
+actions:
+  - action: light.turn_off
+    target:
+      entity_id: all   # (evdeki bütün ışıklar)
+  - action: switch.turn_off
+    target:
+      entity_id:
+        - switch.tv_unitesi   # (kapanacak prizler; buzdolabının ve modemin prizini yazma)
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      message: Evde kimse kalmadı; ışıklar ve prizler kapatıldı.

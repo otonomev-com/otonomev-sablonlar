@@ -1,0 +1,109 @@
+# OtonomEv şablon denetimi
+#
+# Her gönderimde, her pull request'te ve haftada bir (pazartesi 06:17, İstanbul saati) iki denetim çalışır:
+#   1. YAML biçimi (yamllint).
+#   2. Home Assistant yapılandırma denetimi, kararlı ve beta sürümle: şablonlar denetim/configuration.yaml'daki örnek
+#      girdilerle kurulur, düz otomasyonlar eklenir ve Home Assistant'ın check_config betiği çalışır. Home Assistant
+#      bozuk otomasyonu yalnızca günlüğe yazdığı için günlükte ERROR satırı varsa denetim de bozulur.
+# Güvenlik: izinler salt okunur, anahtar ya da gizli bilgi kullanılmaz, pull_request_target kullanılmaz. Yalnızca
+# haftalık denetim bozulursa "sorun-ac" işi depoda bir sorun (issue) açar; yazma izni yalnızca o işte vardır.
+name: Denetim
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: denetim-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  yaml:
+    name: YAML biçimi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.14"
+      - name: yamllint
+        env:
+          KURALLAR: "{extends: default, rules: {line-length: {max: 160}, document-start: disable, truthy: {check-keys: false}}}"
+        run: |
+          python -m pip install --disable-pip-version-check --quiet yamllint==1.38.0
+          yamllint --strict -d "$KURALLAR" blueprints otomasyonlar denetim .github
+
+  home-assistant:
+    name: Home Assistant (${{ matrix.kanal }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        kanal: [stable, beta]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.14"
+      - name: Home Assistant'ı kur
+        env:
+          KANAL: ${{ matrix.kanal }}
+        run: |
+          if [ "$KANAL" = "beta" ]; then on="--pre"; else on=""; fi
+          surum=$(python -m pip index versions $on homeassistant 2>/dev/null | head -n 1 | sed -E 's/.*\((.*)\).*/\1/')
+          if [ -z "$surum" ]; then echo "::error::Home Assistant sürümü bulunamadı ($KANAL)"; exit 1; fi
+          echo "Home Assistant $surum kuruluyor ($KANAL)"
+          python -m pip install --disable-pip-version-check --quiet "homeassistant==$surum"
+      - name: Denetim klasörünü hazırla
+        run: |
+          mkdir -p denetim/blueprints/automation
+          cp -r blueprints/automation/otonomev denetim/blueprints/automation/
+          cp -r otomasyonlar denetim/otomasyonlar
+      - name: check_config
+        run: |
+          set -o pipefail
+          durdur="$(python -c 'import secrets; print(secrets.token_hex(16))')"
+          echo "::stop-commands::$durdur"
+          python -m homeassistant --script check_config --config denetim 2>&1 | tee cikti.txt
+          echo "::$durdur::"
+          if grep -E '^(ERROR|CRITICAL)' cikti.txt > hatalar.txt; then
+            echo "::error::Home Assistant denetimi $(wc -l < hatalar.txt) hata buldu (ayrıntı yukarıdaki günlükte)"
+            exit 1
+          fi
+          uyari=$(grep -c '^WARNING' cikti.txt || true)
+          if [ "$uyari" -gt 0 ]; then echo "::warning::Home Assistant denetiminde $uyari uyarı var (ayrıntı günlükte)"; fi
+          echo "Home Assistant denetimi temiz."
+
+  sorun-ac:
+    name: Haftalık denetim bozulduysa sorun aç
+    needs: [yaml, home-assistant]
+    if: ${{ failure() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Sorun aç
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CALISMA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          acik=$(gh issue list --state open --search "Haftalık denetim bozuldu in:title" --json number --jq 'length')
+          if [ "$acik" != "0" ]; then echo "Açık bir sorun zaten var; yenisi açılmadı."; exit 0; fi
+          govde="Haftalık denetimde en az bir şablon ya da otomasyon hata verdi"
+          govde="$govde (YAML biçimi ya da Home Assistant'ın kararlı veya beta sürümü). Ayrıntı: $CALISMA"
+          gh issue create --title "Haftalık denetim bozuldu ($(date -u +%Y-%m-%d))" --body "$govde"

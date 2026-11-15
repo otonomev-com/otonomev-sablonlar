@@ -1,0 +1,88 @@
+# OtonomEv şablon denetimi (.github/workflows/denetim.yml)
+#
+# GitHub Actions bu klasörü Home Assistant'ın resmî kapsayıcısında check_config ile denetler. Denetimden önce
+# şablonlar blueprints/ klasörüne, düz otomasyonlar otomasyonlar/ klasörüne kopyalanır.
+# - "automation sablonlar": her şablon, sitedeki "Senden istenecekler" tablosunun örnek girdileriyle kurulur.
+# - "automation duz": otomasyonlar/ klasöründeki düz YAML'ların hepsi.
+# Varlık kimlikleri örnektir. Denetim biçimi ve şablon girdilerini sınar; cihazların evde olup olmadığına bakmaz.
+# Yeni şablon eklenince buraya da bir satır eklenir; girdisi varsayılanla gelenler yazılmaz.
+
+homeassistant:
+  name: OtonomEv denetim
+  unit_system: metric
+  time_zone: Europe/Istanbul
+
+automation sablonlar:
+  - id: denetim_acik_kalan_kapi_pencere
+    alias: "Denetim: Açık kalan kapı ya da pencere"
+    use_blueprint:
+      path: otonomev/acik-kalan-kapi-pencere.yaml
+      input:
+        sensorler:
+          - binary_sensor.balkon_kapisi
+        bildirim:
+          - notify.telefon
+
+  - id: denetim_camasir_bulasik_bitti
+    alias: "Denetim: Çamaşır ya da bulaşık bitti"
+    use_blueprint:
+      path: otonomev/camasir-bulasik-bitti.yaml
+      input:
+        guc_sensoru: sensor.camasir_makinesi_prizi_guc
+        bildirim:
+          - notify.telefon
+
+  - id: denetim_evden_cikinca_kapat
+    alias: "Denetim: Evden çıkınca kapat"
+    use_blueprint:
+      path: otonomev/evden-cikinca-kapat.yaml
+      input:
+        kapanacaklar:
+          - switch.tv_unitesi
+        bildirim:
+          - notify.telefon
+
+  - id: denetim_eve_gelirken_hazirla
+    alias: "Denetim: Eve gelirken hazırla"
+    use_blueprint:
+      path: otonomev/eve-gelirken-hazirla.yaml
+      input:
+        isiklar:
+          - light.antre
+          - light.salon
+        termostatlar:
+          - climate.kombi
+
+  - id: denetim_gun_batiminda_isik
+    alias: "Denetim: Gün batımında ışık"
+    use_blueprint:
+      path: otonomev/gun-batiminda-isik.yaml
+      input:
+        isiklar:
+          - light.salon
+          - light.balkon
+        zaman_farki:
+          hours: 0
+          minutes: -30
+          seconds: 0
+
+  - id: denetim_hareketle_isik
+    alias: "Denetim: Hareketle ışık"
+    use_blueprint:
+      path: otonomev/hareketle-isik.yaml
+      input:
+        hareket_sensoru: binary_sensor.koridor_hareket
+        isik:
+          - light.koridor
+
+  - id: denetim_pili_azalan_cihazlar
+    alias: "Denetim: Pili azalan cihazlar"
+    use_blueprint:
+      path: otonomev/pili-azalan-cihazlar.yaml
+      input:
+        bildirim:
+          - notify.telefon
+        haric:
+          - sensor.kumanda_pil
+
+automation duz: !include_dir_list otomasyonlar

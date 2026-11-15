@@ -1,0 +1,43 @@
+alias: Pili azalan cihazları bildir
+description: Her gün saat 10'da pili yüzde 20'nin altına inen cihazları telefona tek bildirimde listeler. (OtonomEv, O5)
+mode: single
+triggers:
+  - trigger: time
+    at: "10:00:00"   # (listenin her gün geleceği saat)
+variables:
+  esik: 20   # (yüzde; pili bunun altına inen cihazlar listelenir)
+  haric: []   # (listeye girmeyecek pil sensörleri, ör. ["sensor.kumanda_pil"])
+  dusukler: >-
+    {% set disarida = integration_entities('mobile_app') + haric %}
+    {% set ns = namespace(liste=[], adlar=[]) %}
+    {% for s in states.sensor
+         | selectattr('attributes.device_class', 'defined')
+         | selectattr('attributes.device_class', 'eq', 'battery')
+         | selectattr('state', 'is_number')
+         | rejectattr('entity_id', 'in', disarida) %}
+      {% if s.state | float < esik | float %}
+        {% set ad = device_name(s.entity_id) or s.name %}
+        {% set ns.liste = ns.liste + [ad ~ ' (%' ~ (s.state | float | round(0) | int) ~ ')'] %}
+        {% set ns.adlar = ns.adlar + [ad] %}
+      {% endif %}
+    {% endfor %}
+    {% for s in states.binary_sensor
+         | selectattr('attributes.device_class', 'defined')
+         | selectattr('attributes.device_class', 'eq', 'battery')
+         | selectattr('state', 'eq', 'on')
+         | rejectattr('entity_id', 'in', disarida) %}
+      {% set ad = device_name(s.entity_id) or s.name %}
+      {% if ad not in ns.adlar %}
+        {% set ns.liste = ns.liste + [ad ~ ' (pil zayıf)'] %}
+      {% endif %}
+    {% endfor %}
+    {{ ns.liste }}
+conditions:
+  - condition: template
+    value_template: "{{ dusukler | count > 0 }}"
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      message: "Pili azalan cihazlar: {{ dusukler | join(', ') }}"

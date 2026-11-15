@@ -1,0 +1,95 @@
+blueprint:
+  name: Evden son kişi çıkınca her şeyi kapat
+  description: >-
+    Evdeki son kişi de çıkınca (telefonlarındaki Home Assistant uygulamasının konumuna göre) bütün ışıkları ve
+    seçtiğin prizleri kapatır, istersen telefonlara haber verir. Evde biri kaldıkça hiçbir şey kapanmaz.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/evden-cikinca-kapat/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/evden-cikinca-kapat.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    butun_isiklar:
+      name: Bütün ışıkları kapat
+      description: Açıksa evdeki bütün ışıklar kapanır. Kapalıysa yalnızca aşağıda seçtiklerin kapanır.
+      default: true
+      selector:
+        boolean: {}
+    kapanacaklar:
+      name: Ayrıca kapanacaklar
+      description: >-
+        Prizler, röleler, televizyon ya da tek tek ışıklar. Buzdolabının, modemin ve Home Assistant'ın takılı olduğu
+        prizi seçme.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain:
+                - switch
+                - light
+                - fan
+                - media_player
+    sure:
+      name: Bekleme süresi
+      description: >-
+        Son kişi çıktıktan sonra kaç dakika beklensin. Kısa çıkışlarda ve telefonun konumu bir an kaydığında
+        çalışmasın diye.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        İsteğe bağlı. Telefonundaki Home Assistant uygulamasının bildirim varlığı; boş bırakırsan bildirim gelmez.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: zone.home
+    to: "0"
+    for:
+      minutes: !input sure
+
+variables:
+  butun_isiklar: !input butun_isiklar
+  kapanacaklar: !input kapanacaklar
+  bildirim: !input bildirim
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ butun_isiklar }}"
+    then:
+      - action: light.turn_off
+        target:
+          entity_id: all
+  - if:
+      - condition: template
+        value_template: "{{ kapanacaklar | count > 0 }}"
+    then:
+      - action: homeassistant.turn_off
+        target:
+          entity_id: !input kapanacaklar
+  - if:
+      - condition: template
+        value_template: "{{ bildirim | count > 0 }}"
+    then:
+      - action: notify.send_message
+        target:
+          entity_id: !input bildirim
+        data:
+          message: Evde kimse kalmadı; ışıklar ve seçtiğin cihazlar kapatıldı.

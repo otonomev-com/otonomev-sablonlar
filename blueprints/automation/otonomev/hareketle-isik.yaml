@@ -1,0 +1,68 @@
+blueprint:
+  name: Hareket algılanınca ışığı aç, hareket bitince kapat
+  description: >-
+    Hareket sensörü bir şey algılayınca seçtiğin ışığı açar. Hareket bittikten sonra seçtiğin süre kadar
+    bekler ve ışığı kapatır. Bekleme sırasında yeniden hareket olursa süre baştan başlar.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/hareketle-isik/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/hareketle-isik.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    hareket_sensoru:
+      name: Hareket sensörü
+      description: Hareketi algılayan sensör. Listede yalnızca hareket, varlık ve doluluk sensörleri çıkar.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - motion
+                - occupancy
+                - presence
+    isik:
+      name: Işık
+      description: Açılıp kapanacak ışık. Birden çok ışık, akıllı anahtar ya da röle de seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain:
+                - light
+                - switch
+    kapanma_suresi:
+      name: Kapanma süresi
+      description: Hareket bittikten kaç dakika sonra ışık sönsün.
+      default: 2
+      selector:
+        number:
+          min: 0
+          max: 60
+          step: 0.5
+          unit_of_measurement: dakika
+          mode: box
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input hareket_sensoru
+    from: "off"
+    to: "on"
+
+actions:
+  - action: homeassistant.turn_on
+    target:
+      entity_id: !input isik
+  - wait_for_trigger:
+      - trigger: state
+        entity_id: !input hareket_sensoru
+        from: "on"
+        to: "off"
+  - delay:
+      minutes: !input kapanma_suresi
+  - action: homeassistant.turn_off
+    target:
+      entity_id: !input isik

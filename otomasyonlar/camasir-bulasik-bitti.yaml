@@ -1,0 +1,23 @@
+alias: Çamaşır makinesi bitti
+description: Çamaşır makinesi çalışıp durunca telefona bildirim gönderir. (OtonomEv, O4)
+mode: single
+max_exceeded: silent
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.camasir_makinesi_prizi_guc   # (makinenin takılı olduğu prizin güç sensörü)
+    above: 10   # (çalışma eşiği, watt)
+    for:
+      minutes: 1
+conditions: []
+actions:
+  - wait_for_trigger:
+      - trigger: numeric_state
+        entity_id: sensor.camasir_makinesi_prizi_guc   # (yukarıdaki sensörün aynısı)
+        below: 5   # (bitiş eşiği, watt)
+        for:
+          minutes: 5   # (bekleme süresi: güç bu kadar dakika düşük kalınca makine bitti sayılır)
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      message: "Çamaşır makinesi bitti."   # (bildirimde yazacak cümle)

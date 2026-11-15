@@ -1,0 +1,84 @@
+blueprint:
+  name: Eve ilk kişi gelirken ışıkları ve ısıtmayı hazırla
+  description: >-
+    Ev boşken biri eve gelince (telefonundaki Home Assistant uygulamasının konumuna göre) seçtiğin ışıkları açar,
+    istersen yalnızca hava kararmışsa. Termostatı da istediğin sıcaklıkta ısıtmaya alır. Evde zaten biri varken
+    çalışmaz.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/eve-gelirken-hazirla/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/eve-gelirken-hazirla.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    isiklar:
+      name: Açılacak ışıklar
+      description: >-
+        Ör. antre ve salon. Işık yerine akıllı priz ya da röle de seçebilirsin. Boş bırakırsan ışık açılmaz.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain:
+                - light
+                - switch
+    yalnizca_karanlikta:
+      name: Işıkları yalnızca hava kararınca aç
+      description: Açıksa ışıklar yalnızca güneş batmışken açılır.
+      default: true
+      selector:
+        boolean: {}
+    termostatlar:
+      name: Termostatlar
+      description: >-
+        Kombi termostatı ya da akıllı radyatör vanaları. Boş bırakırsan ısıtmaya dokunulmaz.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: climate
+    sicaklik:
+      name: Hedef sıcaklık
+      description: Termostatların ayarlanacağı sıcaklık.
+      default: 21
+      selector:
+        number:
+          min: 10
+          max: 30
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: box
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: zone.home
+    from: "0"
+
+variables:
+  isiklar: !input isiklar
+  yalnizca_karanlikta: !input yalnizca_karanlikta
+  termostatlar: !input termostatlar
+
+actions:
+  - if:
+      - condition: template
+        value_template: >-
+          {{ isiklar | count > 0 and (not yalnizca_karanlikta or is_state('sun.sun', 'below_horizon')) }}
+    then:
+      - action: homeassistant.turn_on
+        target:
+          entity_id: !input isiklar
+  - if:
+      - condition: template
+        value_template: "{{ termostatlar | count > 0 }}"
+    then:
+      - action: climate.set_temperature
+        target:
+          entity_id: !input termostatlar
+        data:
+          temperature: !input sicaklik
+          hvac_mode: heat

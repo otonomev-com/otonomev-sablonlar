@@ -1,0 +1,66 @@
+blueprint:
+  name: Kapı ya da pencere açık kalınca haber ver
+  description: >-
+    Seçtiğin kapı, pencere ya da garaj kapısı belirlediğin süreden uzun açık kalırsa telefonuna bildirim gönderir.
+    Bildirimde hangisinin açık kaldığı yazar. Süre dolmadan kapanırsa bildirim gelmez.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/acik-kalan-kapi-pencere/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/acik-kalan-kapi-pencere.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    sensorler:
+      name: Kapı ve pencere sensörleri
+      description: >-
+        İzlenecek sensörler. Listede yalnızca kapı, pencere, garaj kapısı ve açılma sensörleri çıkar.
+        Birden çok sensör seçebilirsin; her biri için ayrı bildirim gelir.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - door
+                - window
+                - garage_door
+                - opening
+    sure:
+      name: Süre
+      description: Kaç dakika açık kalınca haber versin.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 240
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır).
+        Birden çok telefon seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input sensorler
+    from: "off"
+    to: "on"
+    for:
+      minutes: !input sure
+
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      message: "{{ trigger.to_state.name }} açık kaldı."
