@@ -58,15 +58,19 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: "3.14"
+      # Home Assistant yalnızca sanal ortamda (venv) ya da kapsayıcıda çalışır; sonraki adımlar bu ortamın python'unu kullanır
       - name: Home Assistant'ı kur
         env:
           KANAL: ${{ matrix.kanal }}
         run: |
+          python -m venv "$RUNNER_TEMP/ha"
+          ha_py="$RUNNER_TEMP/ha/bin/python"
           if [ "$KANAL" = "beta" ]; then on="--pre"; else on=""; fi
-          surum=$(python -m pip index versions $on homeassistant 2>/dev/null | head -n 1 | sed -E 's/.*\((.*)\).*/\1/')
+          surum=$("$ha_py" -m pip index versions $on homeassistant 2>/dev/null | head -n 1 | sed -E 's/.*\((.*)\).*/\1/')
           if [ -z "$surum" ]; then echo "::error::Home Assistant sürümü bulunamadı ($KANAL)"; exit 1; fi
           echo "Home Assistant $surum kuruluyor ($KANAL)"
-          python -m pip install --disable-pip-version-check --quiet "homeassistant==$surum"
+          "$ha_py" -m pip install --disable-pip-version-check --quiet "homeassistant==$surum"
+          echo "$RUNNER_TEMP/ha/bin" >> "$GITHUB_PATH"
       - name: Denetim klasörünü hazırla
         run: |
           mkdir -p denetim/blueprints/automation
