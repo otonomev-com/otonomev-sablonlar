@@ -1,0 +1,17 @@
+alias: Su kaçağı algılanınca haber ver
+description: Su kaçağı sensörlerinden biri ıslanınca telefona hemen bildirim gönderir. (OtonomEv, O8)
+mode: queued
+triggers:
+  - trigger: state
+    entity_id:
+      - binary_sensor.banyo_su_kacagi   # (su kaçağı sensörlerinin varlık kimlikleri; bir ya da daha çok satır)
+      - binary_sensor.mutfak_su_kacagi
+    to: "on"
+conditions: []
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      title: Su kaçağı!
+      message: "{{ trigger.to_state.name }} su algıladı."

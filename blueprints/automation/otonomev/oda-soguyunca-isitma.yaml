@@ -1,0 +1,88 @@
+blueprint:
+  name: Oda soğuyunca ısıtmayı aç
+  description: >-
+    Odadaki sıcaklık sensörü belirlediğin sıcaklığın altına inince kapalı olan radyatör vanasını ya da termostatı
+    ısıtmaya alır ve hedef sıcaklığı ayarlar. Isıtma zaten açıksa dokunmaz.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/oda-soguyunca-isitma/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/oda-soguyunca-isitma.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    sicaklik_sensoru:
+      name: Oda sıcaklık sensörü
+      description: Odanın sıcaklığını ölçen sensör. Radyatörden ve pencereden uzakta duran sensör odayı daha doğru ölçer.
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
+    isiticilar:
+      name: Radyatör vanası ya da termostat
+      description: Açılacak ısıtma. Odada birden çok radyatör vanası varsa hepsini seç.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: climate
+    acilma_sicakligi:
+      name: Açılma sıcaklığı
+      description: Oda bu sıcaklığın altına inince ısıtma açılır.
+      default: 19
+      selector:
+        number:
+          min: 5
+          max: 30
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: box
+    hedef_sicaklik:
+      name: Hedef sıcaklık
+      description: Isıtma açılınca radyatör vanasına ya da termostata yazılacak sıcaklık.
+      default: 21
+      selector:
+        number:
+          min: 5
+          max: 30
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: box
+    sure:
+      name: Bekleme süresi
+      description: >-
+        Sıcaklık bu kadar dakika açılma sıcaklığının altında kalınca ısıtma açılır. Pencere kısa bir süre açıldığında
+        çalışmasın diye.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+
+mode: single
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input sicaklik_sensoru
+    below: !input acilma_sicakligi
+    for:
+      minutes: !input sure
+
+variables:
+  isiticilar: !input isiticilar
+  kapalilar: "{{ isiticilar | select('is_state', 'off') | list }}"
+
+conditions:
+  - condition: template
+    value_template: "{{ kapalilar | count > 0 }}"
+
+actions:
+  - action: climate.set_temperature
+    target:
+      entity_id: "{{ kapalilar }}"
+    data:
+      temperature: !input hedef_sicaklik
+      hvac_mode: heat

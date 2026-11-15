@@ -53,6 +53,17 @@ automation sablonlar:
         termostatlar:
           - climate.kombi
 
+  - id: denetim_gece_modu
+    alias: "Denetim: Gece modu"
+    use_blueprint:
+      path: otonomev/gece-modu.yaml
+      input:
+        dugme: input_button.gece_modu
+        kapanacaklar:
+          - switch.tv_unitesi
+        bildirim:
+          - notify.telefon
+
   - id: denetim_gun_batiminda_isik
     alias: "Denetim: Gün batımında ışık"
     use_blueprint:
@@ -75,6 +86,15 @@ automation sablonlar:
         isik:
           - light.koridor
 
+  - id: denetim_oda_soguyunca_isitma
+    alias: "Denetim: Oda soğuyunca ısıtma"
+    use_blueprint:
+      path: otonomev/oda-soguyunca-isitma.yaml
+      input:
+        sicaklik_sensoru: sensor.yatak_odasi_sicakligi
+        isiticilar:
+          - climate.yatak_odasi_vana
+
   - id: denetim_pili_azalan_cihazlar
     alias: "Denetim: Pili azalan cihazlar"
     use_blueprint:
@@ -84,5 +104,17 @@ automation sablonlar:
           - notify.telefon
         haric:
           - sensor.kumanda_pil
+
+  - id: denetim_su_kacagi_uyarisi
+    alias: "Denetim: Su kaçağı uyarısı"
+    use_blueprint:
+      path: otonomev/su-kacagi-uyarisi.yaml
+      input:
+        sensorler:
+          - binary_sensor.banyo_su_kacagi
+        bildirim:
+          - notify.telefon
+        vanalar:
+          - valve.ana_su_vanasi
 
 automation duz: !include_dir_list otomasyonlar

@@ -1,0 +1,66 @@
+blueprint:
+  name: Su kaçağı algılanınca haber ver
+  description: >-
+    Seçtiğin su kaçağı sensörlerinden biri ıslanınca telefonlara hemen bildirim gönderir. Akıllı su vanan varsa onu
+    da kapatır. Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/su-kacagi-uyarisi/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/su-kacagi-uyarisi.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    sensorler:
+      name: Su kaçağı sensörleri
+      description: Suyu algılayan sensörler. Listede yalnızca nem (su kaçağı) sensörleri çıkar; birden çok seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class: moisture
+    bildirim:
+      name: Bildirim gidecek yer
+      description: Telefonundaki Home Assistant uygulamasının bildirim varlığı. Evde birden çok telefon varsa hepsini seç.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+    vanalar:
+      name: Kapanacak su vanaları
+      description: >-
+        İsteğe bağlı. Akıllı su vanan varsa seç; su kaçağında kapanır ve bildirimde yazar. Boş bırakırsan yalnızca
+        bildirim gelir.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: valve
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input sensorler
+    to: "on"
+
+variables:
+  vanalar: !input vanalar
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ vanalar | count > 0 }}"
+    then:
+      - action: valve.close_valve
+        target:
+          entity_id: !input vanalar
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      title: Su kaçağı!
+      message: >-
+        {{ trigger.to_state.name }} su algıladı.{% if vanalar | count > 0 %} Su vanası kapatıldı.{% endif %}

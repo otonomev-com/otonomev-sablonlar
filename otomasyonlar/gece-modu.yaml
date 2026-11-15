@@ -1,0 +1,28 @@
+alias: "Gece modu: tek dokunuşla ışıkları kapat, açık kalan kapı ve pencereleri bildir"
+description: Gece modu düğmesine basınca bütün ışıkları kapatır, açık kalan kapı ve pencereleri telefona bildirir. (OtonomEv, O10)
+mode: single
+triggers:
+  - trigger: state
+    entity_id: input_button.gece_modu   # (gece modu düğmesi)
+    not_from: unavailable
+    not_to:
+      - unavailable
+      - unknown
+conditions: []
+actions:
+  - action: light.turn_off
+    target:
+      entity_id: all   # (evdeki bütün ışıklar)
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      title: Gece modu
+      message: >-
+        {% set acik = states.binary_sensor
+          | selectattr('state', 'eq', 'on')
+          | selectattr('attributes.device_class', 'defined')
+          | selectattr('attributes.device_class', 'in', ['door', 'window', 'garage_door', 'opening'])
+          | map(attribute='name') | list %}
+        {% if acik | count > 0 %}Işıklar kapandı. Açık kalan: {{ acik | join(', ') }}.{% else %}Işıklar kapandı.
+        Bütün kapı ve pencereler kapalı.{% endif %}

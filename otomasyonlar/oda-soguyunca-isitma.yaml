@@ -1,0 +1,20 @@
+alias: Oda soğuyunca ısıtmayı aç
+description: Oda 5 dakika 19 derecenin altında kalınca kapalı radyatör vanasını 21 dereceye açar. (OtonomEv, O9)
+mode: single
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.yatak_odasi_sicakligi   # (odanın sıcaklık sensörü)
+    below: 19   # (açılma sıcaklığı, °C)
+    for:
+      minutes: 5   # (sıcaklık kaç dakika bu değerin altında kalsın)
+conditions:
+  - condition: state
+    entity_id: climate.yatak_odasi_vana   # (radyatör vanası ya da termostat)
+    state: "off"
+actions:
+  - action: climate.set_temperature
+    target:
+      entity_id: climate.yatak_odasi_vana   # (yukarıdakiyle aynı)
+    data:
+      temperature: 21   # (hedef sıcaklık, °C)
+      hvac_mode: heat

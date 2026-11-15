@@ -1,0 +1,116 @@
+blueprint:
+  name: "Gece modu: tek dokunuşla ışıkları kapat, açık kalan kapı ve pencereleri bildir"
+  description: >-
+    Gece modu düğmesine basınca evdeki bütün ışıkları (ya da seçtiklerini) kapatır ve telefonuna hangi kapı ve
+    pencerelerin açık kaldığını bildirir. Hepsi kapalıysa bunu yazar.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/gece-modu/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/gece-modu.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    dugme:
+      name: Gece modu düğmesi
+      description: >-
+        Basınca gece moduna geçilecek düğme: Ayarlar → Cihazlar ve hizmetler → Yardımcılar'da oluşturduğun Düğme
+        yardımcısı.
+      selector:
+        entity:
+          filter:
+            - domain: input_button
+    butun_isiklar:
+      name: Bütün ışıkları kapat
+      description: Açıksa evdeki bütün ışıklar kapanır. Kapalıysa yalnızca aşağıda seçtiklerin kapanır.
+      default: true
+      selector:
+        boolean: {}
+    kapanacaklar:
+      name: Ayrıca kapanacaklar
+      description: >-
+        İsteğe bağlı. Prizler, röleler, televizyon ya da tek tek ışıklar. Buzdolabının, modemin ve Home Assistant'ın
+        takılı olduğu prizi seçme.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain:
+                - switch
+                - light
+                - fan
+                - media_player
+    sensorler:
+      name: Kapı ve pencere sensörleri
+      description: >-
+        İsteğe bağlı. Açık olup olmadığına bakılacak sensörler. Boş bırakırsan evdeki bütün kapı, pencere, garaj kapısı
+        ve açılma sensörlerine bakar.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - door
+                - window
+                - garage_door
+                - opening
+    bildirim:
+      name: Bildirim gidecek yer
+      description: Telefonundaki Home Assistant uygulamasının bildirim varlığı. Birden çok telefon seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input dugme
+    not_from: unavailable
+    not_to:
+      - unavailable
+      - unknown
+
+variables:
+  butun_isiklar: !input butun_isiklar
+  kapanacaklar: !input kapanacaklar
+  sensorler: !input sensorler
+  acik_kalanlar: >-
+    {% if sensorler | count > 0 %}
+      {% set bakilacaklar = expand(sensorler) %}
+    {% else %}
+      {% set bakilacaklar = states.binary_sensor
+        | selectattr('attributes.device_class', 'defined')
+        | selectattr('attributes.device_class', 'in', ['door', 'window', 'garage_door', 'opening'])
+        | list %}
+    {% endif %}
+    {{ bakilacaklar | selectattr('state', 'eq', 'on') | map(attribute='name') | list }}
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ butun_isiklar }}"
+    then:
+      - action: light.turn_off
+        target:
+          entity_id: all
+  - if:
+      - condition: template
+        value_template: "{{ kapanacaklar | count > 0 }}"
+    then:
+      - action: homeassistant.turn_off
+        target:
+          entity_id: !input kapanacaklar
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      title: Gece modu
+      message: >-
+        {% if acik_kalanlar | count > 0 %}Işıklar kapandı. Açık kalan: {{ acik_kalanlar | join(', ') }}.{% else %}Işıklar
+        kapandı. Bütün kapı ve pencereler kapalı.{% endif %}
