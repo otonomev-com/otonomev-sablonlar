@@ -1,0 +1,125 @@
+blueprint:
+  name: Uyanma saatine doğru ışığı yavaş yavaş aç
+  description: >-
+    Uyanma saatinden önce seçtiğin ışıkları en kısık haliyle açar ve her dakika biraz daha parlatır; uyanma
+    saatinde ışıklar istediğin parlaklığa ulaşır. Başlarken ışıklardan biri açıksa dokunmaz; ışıklardan birini
+    kapatırsan durur.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/sabah-uyanma-isigi/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/sabah-uyanma-isigi.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    isiklar:
+      name: Işıklar
+      description: >-
+        Yavaş yavaş açılacak ışıklar. Parlaklığı ayarlanabilen (kısılabilen) bir ampul ya da LED şerit seç; yalnızca
+        açıp kapatan röle ya da priz bu iş için uygun değil.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: light
+    uyanma_saati:
+      name: Uyanma saati
+      description: Işıkların en son parlaklığa ulaşacağı saat.
+      default: "07:00:00"
+      selector:
+        time: {}
+    sure:
+      name: Açılma süresi
+      description: Işıklar uyanma saatinden bu kadar önce en kısık haliyle yanar ve her dakika biraz daha parlar.
+      default: 30
+      selector:
+        number:
+          min: 5
+          max: 60
+          step: 5
+          unit_of_measurement: dakika
+          mode: slider
+    gunler:
+      name: Günler
+      description: Otomasyonun çalışacağı günler.
+      default:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+      selector:
+        select:
+          multiple: true
+          mode: list
+          options:
+            - label: Pazartesi
+              value: mon
+            - label: Salı
+              value: tue
+            - label: Çarşamba
+              value: wed
+            - label: Perşembe
+              value: thu
+            - label: Cuma
+              value: fri
+            - label: Cumartesi
+              value: sat
+            - label: Pazar
+              value: sun
+    parlaklik:
+      name: En son parlaklık
+      description: Uyanma saatinde ışıkların ulaşacağı parlaklık.
+      default: 100
+      selector:
+        number:
+          min: 10
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
+          mode: slider
+
+mode: single
+max_exceeded: silent
+
+trigger_variables:
+  uyanma: !input uyanma_saati
+  sure: !input sure
+
+# Başlama saati = uyanma saati - açılma süresi (ör. 07:00 ve 30 dakika: 06:30)
+triggers:
+  - trigger: time
+    at: >-
+      {% set p = uyanma.split(':') %}{% set t = (p[0] | int * 60 + p[1] | int - sure | int) % 1440 %}{{ '%02d:%02d:00' | format(t // 60, t % 60) }}
+    weekday: !input gunler
+
+conditions:
+  - condition: state
+    entity_id: !input isiklar
+    state: "off"
+
+variables:
+  isiklar: !input isiklar
+  parlaklik: !input parlaklik
+  sure_dakika: !input sure
+  adim: "{{ sure_dakika | int + 1 }}"
+
+actions:
+  - repeat:
+      count: "{{ adim }}"
+      sequence:
+        - if:
+            - condition: template
+              value_template: "{{ repeat.index > 1 }}"
+          then:
+            - delay:
+                minutes: 1
+            - if:
+                - condition: template
+                  value_template: "{{ expand(isiklar) | selectattr('state', 'eq', 'off') | list | count > 0 }}"
+              then:
+                - stop: Işıklardan biri kapatıldı; uyanma ışığı durdu.
+        - action: light.turn_on
+          target:
+            entity_id: !input isiklar
+          data:
+            brightness_pct: "{{ [1, (parlaklik * repeat.index / adim) | round(0) | int] | max }}"

@@ -1,0 +1,29 @@
+alias: Evde kimse yokken robot süpürge
+description: Ev 10 dakika boş kalınca robot süpürgeyi çalıştırır; yalnızca 09:00 ile 20:00 arasında. Telefona haber verir. (OtonomEv, O12)
+mode: single
+triggers:
+  - trigger: state
+    entity_id: zone.home   # (evde kaç kişi olduğunu tutan "Ev" bölgesi)
+    to: "0"
+    for:
+      minutes: 10   # (son kişi çıktıktan sonra kaç dakika beklensin)
+  - trigger: time
+    at: "09:00:00"   # (en erken saat; ev daha önce boşaldıysa süpürge bu saatte başlar)
+conditions:
+  - condition: state
+    entity_id: zone.home
+    state: "0"
+    for:
+      minutes: 10   # (yukarıdaki bekleme süresiyle aynı)
+  - condition: time
+    after: "09:00:00"   # (en erken saat)
+    before: "20:00:00"   # (en geç saat)
+actions:
+  - action: vacuum.start
+    target:
+      entity_id: vacuum.robot_supurge   # (robot süpürgenin varlık kimliği)
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      message: Evde kimse yok; robot süpürge temizliğe başladı.

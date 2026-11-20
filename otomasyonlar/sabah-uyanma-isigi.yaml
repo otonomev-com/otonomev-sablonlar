@@ -1,0 +1,35 @@
+alias: Uyanma ışığı
+description: Hafta içi 06:30'da yatak odası lambasını kısık yakar, 3 dakikada bir biraz daha parlatır; 06:57'de tam parlak. (OtonomEv, O11)
+mode: single
+triggers:
+  - trigger: time
+    at: "06:30:00"   # (ışığın yanmaya başlayacağı saat)
+    weekday:   # (çalışacağı günler)
+      - mon
+      - tue
+      - wed
+      - thu
+      - fri
+conditions:
+  - condition: state
+    entity_id: light.yatak_odasi   # (yavaş yavaş açılacak ışık; dört yerde de aynısını yaz)
+    state: "off"
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.yatak_odasi
+    data:
+      brightness_pct: 10   # (ilk parlaklık)
+  - repeat:
+      count: 9   # (kaç adım daha parlasın: %10'dan %100'e 9 adım)
+      sequence:
+        - delay:
+            minutes: 3   # (adımlar arasındaki süre)
+        - condition: state   # ışığı kapattıysan sonraki adımlar atlanır, ışık yeniden yanmaz
+          entity_id: light.yatak_odasi
+          state: "on"
+        - action: light.turn_on
+          target:
+            entity_id: light.yatak_odasi
+          data:
+            brightness_step_pct: 10   # (her adımda yüzde kaç parlasın)

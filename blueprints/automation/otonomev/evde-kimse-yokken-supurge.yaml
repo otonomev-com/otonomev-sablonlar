@@ -1,0 +1,106 @@
+blueprint:
+  name: Evde kimse yokken robot süpürgeyi çalıştır
+  description: >-
+    Evdeki son kişi de çıkınca (telefonlarındaki Home Assistant uygulamasının konumuna göre) robot süpürgeyi
+    çalıştırır. Yalnızca seçtiğin saatler arasında çalışır; ev en erken saatten önce boşaldıysa süpürge o saatte
+    başlar. İstersen günde bir kez çalışır ve telefonlara haber verir.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/evde-kimse-yokken-supurge/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/evde-kimse-yokken-supurge.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    supurge:
+      name: Robot süpürge
+      description: Çalışacak robot süpürge. Birden çok süpürgen varsa hepsini seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: vacuum
+    sure:
+      name: Bekleme süresi
+      description: >-
+        Son kişi çıktıktan sonra kaç dakika beklensin. Kısa çıkışlarda ve telefonun konumu bir an kaydığında
+        çalışmasın diye.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+    en_erken:
+      name: En erken saat
+      description: Süpürge bu saatten önce çalışmaz. Ev daha önce boşaldıysa süpürge bu saatte başlar.
+      default: "09:00:00"
+      selector:
+        time: {}
+    en_gec:
+      name: En geç saat
+      description: Süpürge bu saatten sonra başlamaz; akşam ve gece komşuları rahatsız etmesin diye.
+      default: "20:00:00"
+      selector:
+        time: {}
+    gunde_bir:
+      name: Günde bir kez
+      description: Açıksa süpürge günde en çok bir kez çalışır; ev aynı gün yeniden boşalınca bir daha çalışmaz.
+      default: true
+      selector:
+        boolean: {}
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        İsteğe bağlı. Telefonundaki Home Assistant uygulamasının bildirim varlığı; boş bırakırsan bildirim gelmez.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: zone.home
+    to: "0"
+    for:
+      minutes: !input sure
+  - trigger: time
+    at: !input en_erken
+
+variables:
+  gunde_bir: !input gunde_bir
+  bildirim: !input bildirim
+
+conditions:
+  - condition: state
+    entity_id: zone.home
+    state: "0"
+    for:
+      minutes: !input sure
+  - condition: time
+    after: !input en_erken
+    before: !input en_gec
+  - condition: template
+    value_template: >-
+      {{ not gunde_bir or this.attributes.last_triggered is none
+         or as_local(this.attributes.last_triggered).date() < now().date() }}
+
+actions:
+  - action: vacuum.start
+    target:
+      entity_id: !input supurge
+  - if:
+      - condition: template
+        value_template: "{{ bildirim | count > 0 }}"
+    then:
+      - action: notify.send_message
+        target:
+          entity_id: !input bildirim
+        data:
+          message: Evde kimse yok; robot süpürge temizliğe başladı.

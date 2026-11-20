@@ -32,6 +32,16 @@ automation sablonlar:
         bildirim:
           - notify.telefon
 
+  - id: denetim_evde_kimse_yokken_supurge
+    alias: "Denetim: Evde kimse yokken robot süpürge"
+    use_blueprint:
+      path: otonomev/evde-kimse-yokken-supurge.yaml
+      input:
+        supurge:
+          - vacuum.robot_supurge
+        bildirim:
+          - notify.telefon
+
   - id: denetim_evden_cikinca_kapat
     alias: "Denetim: Evden çıkınca kapat"
     use_blueprint:
@@ -104,6 +114,14 @@ automation sablonlar:
           - notify.telefon
         haric:
           - sensor.kumanda_pil
+
+  - id: denetim_sabah_uyanma_isigi
+    alias: "Denetim: Sabah uyanma ışığı"
+    use_blueprint:
+      path: otonomev/sabah-uyanma-isigi.yaml
+      input:
+        isiklar:
+          - light.yatak_odasi
 
   - id: denetim_su_kacagi_uyarisi
     alias: "Denetim: Su kaçağı uyarısı"
