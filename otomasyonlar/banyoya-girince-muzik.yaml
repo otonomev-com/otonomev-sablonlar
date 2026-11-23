@@ -1,0 +1,33 @@
+alias: Banyoya girince müzik
+description: Banyoda biri algılanınca hoparlörde müzik çalar, banyo 1 dakika boş kalınca durdurur. (OtonomEv, O37)
+mode: single
+max_exceeded: silent
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.banyo_varlik   # (kendi varlık sensörünün varlık kimliği)
+    from: "off"
+    to: "on"
+conditions: []
+actions:
+  - action: media_player.volume_set
+    target:
+      entity_id: media_player.banyo_hoparloru   # (kendi hoparlörünün varlık kimliği)
+    data:
+      volume_level: 0.3   # (ses seviyesi: 0.3 yüzde 30 demek)
+    continue_on_error: true
+  - action: media_player.play_media
+    target:
+      entity_id: media_player.banyo_hoparloru   # (yukarıdaki hoparlörün aynısı)
+    data:
+      media:
+        media_content_id: media-source://radio_browser/istasyon-kimligi   # (kaydettikten sonra arayüzde bu işlemi aç ve istasyonunu seç)
+        media_content_type: audio/mpeg
+  - wait_for_trigger:
+      - trigger: state
+        entity_id: binary_sensor.banyo_varlik   # (yukarıdaki sensörün aynısı)
+        to: "off"
+        for:
+          minutes: 1   # (banyo kaç dakika boş kalınca müzik dursun)
+  - action: media_player.media_stop
+    target:
+      entity_id: media_player.banyo_hoparloru   # (yukarıdaki hoparlörün aynısı)

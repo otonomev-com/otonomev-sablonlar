@@ -1,0 +1,103 @@
+blueprint:
+  name: Banyoya girince müziği başlat, çıkınca durdur
+  description: >-
+    Varlık sensörü odada birini algılayınca seçtiğin hoparlörde seçtiğin müziği (ör. bir radyo istasyonunu) çalar.
+    Oda seçtiğin süre kadar boş kalınca müziği durdurur. Bu sürede geri dönersen müzik kesilmeden devam eder.
+    Banyo dışında her oda için kullanılabilir.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/banyoya-girince-muzik/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/banyoya-girince-muzik.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    varlik_sensoru:
+      name: Varlık sensörü
+      description: >-
+        Odada birinin olup olmadığını algılayan sensör. Listede yalnızca doluluk, varlık ve hareket sensörleri çıkar.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - occupancy
+                - presence
+                - motion
+    hoparlor:
+      name: Hoparlör
+      description: Müziğin çalacağı hoparlör. Home Assistant'ta medya oynatıcı olarak görünen cihazlar listelenir.
+      selector:
+        entity:
+          filter:
+            - domain: media_player
+    muzik:
+      name: Çalınacak müzik
+      description: Radyo istasyonu ya da ses dosyası. Medya seç'e bas ve listeden seç.
+      selector:
+        media:
+          accept:
+            - audio/*
+    ses_seviyesi:
+      name: Ses seviyesi
+      description: >-
+        Müzik başlamadan önce hoparlörün sesi bu seviyeye getirilir (yüzde). 0 yazarsan sese dokunulmaz.
+        Hoparlörün sesi Home Assistant'tan ayarlanamıyorsa bu adım atlanır, müzik yine başlar.
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
+          mode: slider
+    durdurma_suresi:
+      name: Durdurma süresi
+      description: >-
+        Oda kaç dakika boş kalınca müzik dursun. Hareket sensörü kullanıyorsan süreyi uzat (ör. 5 dakika):
+        hareket sensörü kıpırdamadan duran birini göremez.
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 30
+          step: 0.5
+          unit_of_measurement: dakika
+          mode: box
+
+mode: single
+max_exceeded: silent
+
+variables:
+  ses_seviyesi: !input ses_seviyesi
+
+triggers:
+  - trigger: state
+    entity_id: !input varlik_sensoru
+    from: "off"
+    to: "on"
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ ses_seviyesi | float(0) > 0 }}"
+    then:
+      - action: media_player.volume_set
+        target:
+          entity_id: !input hoparlor
+        data:
+          volume_level: "{{ (ses_seviyesi | float(0) / 100) | round(2) }}"
+        continue_on_error: true
+  - action: media_player.play_media
+    target:
+      entity_id: !input hoparlor
+    data:
+      media: !input muzik
+  - wait_for_trigger:
+      - trigger: state
+        entity_id: !input varlik_sensoru
+        to: "off"
+        for:
+          minutes: !input durdurma_suresi
+  - action: media_player.media_stop
+    target:
+      entity_id: !input hoparlor

@@ -23,6 +23,17 @@ automation sablonlar:
         bildirim:
           - notify.telefon
 
+  - id: denetim_banyoya_girince_muzik
+    alias: "Denetim: Banyoya girince müzik"
+    use_blueprint:
+      path: otonomev/banyoya-girince-muzik.yaml
+      input:
+        varlik_sensoru: binary_sensor.banyo_varlik
+        hoparlor: media_player.banyo_hoparloru
+        muzik:
+          media_content_id: media-source://radio_browser/istasyon-kimligi
+          media_content_type: audio/mpeg
+
   - id: denetim_camasir_bulasik_bitti
     alias: "Denetim: Çamaşır ya da bulaşık bitti"
     use_blueprint:
