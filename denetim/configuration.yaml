@@ -232,4 +232,45 @@ automation sablonlar:
         perdeler:
           - cover.salon_perdesi
 
+  - id: denetim_uzun_sure_hareket_yok
+    alias: "Denetim: Yakınının evinde uzun süre hareket yok"
+    use_blueprint:
+      path: otonomev/uzun-sure-hareket-yok.yaml
+      input:
+        sensorler:
+          - binary_sensor.salon_hareket_sensoru
+          - binary_sensor.mutfak_hareket_sensoru
+        bildirim:
+          - notify.telefon
+
+  - id: denetim_nem_kuf_uyarisi
+    alias: "Denetim: Nem uzun süre yüksek"
+    use_blueprint:
+      path: otonomev/nem-kuf-uyarisi.yaml
+      input:
+        sensorler:
+          - sensor.yatak_odasi_nemi
+        bildirim:
+          - notify.telefon
+
+  - id: denetim_co2_pencereyi_ac
+    alias: "Denetim: Karbondioksit yüksek, pencereyi aç"
+    use_blueprint:
+      path: otonomev/co2-pencereyi-ac.yaml
+      input:
+        sensorler:
+          - sensor.yatak_odasi_karbondioksit
+        bildirim:
+          - notify.telefon
+
+  - id: denetim_supurge_bitti_takildi
+    alias: "Denetim: Robot süpürge bitti ya da takıldı"
+    use_blueprint:
+      path: otonomev/supurge-bitti-takildi.yaml
+      input:
+        supurge:
+          - vacuum.robot_supurge
+        bildirim:
+          - notify.telefon
+
 automation duz: !include_dir_list otomasyonlar

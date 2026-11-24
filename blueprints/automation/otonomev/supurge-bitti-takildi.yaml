@@ -1,0 +1,91 @@
+blueprint:
+  name: Robot süpürge işini bitirince ya da takılınca haber ver
+  description: >-
+    Robot süpürge temizliği bitirip istasyonuna dönünce ya da takılıp hata verince telefonuna bildirim gönderir.
+    Hangisinde haber almak istediğini seçebilirsin.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/supurge-bitti-takildi/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/supurge-bitti-takildi.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    supurge:
+      name: Robot süpürge
+      description: İzlenecek robot süpürge. Birden çok süpürgen varsa hepsini seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: vacuum
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır). Birden çok telefon
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+    bitince:
+      name: Temizlik bitince haber ver
+      description: Süpürge temizlikten ya da istasyona dönüş yolundan istasyonuna oturunca bildirim gelir.
+      default: true
+      selector:
+        boolean: {}
+    takilinca:
+      name: Takılınca haber ver
+      description: Süpürge hata durumuna geçince (takıldı, sıkıştı, fırçası dolandı gibi) bildirim gelir.
+      default: true
+      selector:
+        boolean: {}
+
+mode: queued
+max: 10
+
+variables:
+  bitince: !input bitince
+  takilinca: !input takilinca
+
+triggers:
+  - trigger: state
+    entity_id: !input supurge
+    from:
+      - cleaning
+      - returning
+    to: docked
+    id: bitti
+  - trigger: state
+    entity_id: !input supurge
+    to: error
+    id: takildi
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: bitti
+          - condition: template
+            value_template: "{{ bitince }}"
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: !input bildirim
+            data:
+              title: Temizlik bitti
+              message: "{{ trigger.to_state.name }} temizliği bitirip istasyonuna döndü (saat {{ now().strftime('%H:%M') }})."
+      - conditions:
+          - condition: trigger
+            id: takildi
+          - condition: template
+            value_template: "{{ takilinca }}"
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: !input bildirim
+            data:
+              title: Süpürge takıldı
+              message: >-
+                {{ trigger.to_state.name }} bir sorunla karşılaşıp durdu (saat {{ now().strftime('%H:%M') }}). Ayrıntı
+                süpürgenin kendi uygulamasında.

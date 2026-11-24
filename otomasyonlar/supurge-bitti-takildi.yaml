@@ -1,0 +1,42 @@
+alias: Robot süpürge bitti ya da takıldı
+description: >-
+  Robot süpürge temizliği bitirip istasyonuna dönünce ya da takılıp hata verince telefona bildirim gönderir.
+  (OtonomEv, O42)
+mode: queued
+max: 10
+triggers:
+  - trigger: state
+    entity_id: vacuum.robot_supurge   # (kendi süpürgenin varlık kimliği)
+    from:
+      - cleaning
+      - returning
+    to: docked
+    id: bitti
+  - trigger: state
+    entity_id: vacuum.robot_supurge   # (yukarıdakinin aynısı)
+    to: error
+    id: takildi
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: bitti
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+            data:
+              title: Temizlik bitti
+              message: "{{ trigger.to_state.name }} temizliği bitirip istasyonuna döndü (saat {{ now().strftime('%H:%M') }})."
+      - conditions:
+          - condition: trigger
+            id: takildi
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: notify.telefon   # (yukarıdakinin aynısı)
+            data:
+              title: Süpürge takıldı
+              message: >-
+                {{ trigger.to_state.name }} bir sorunla karşılaşıp durdu (saat {{ now().strftime('%H:%M') }}). Ayrıntı
+                süpürgenin kendi uygulamasında.

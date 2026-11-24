@@ -1,0 +1,81 @@
+blueprint:
+  name: Nem uzun süre yüksek kalınca küf için uyar
+  description: >-
+    Seçtiğin odalardaki nem belirlediğin değerin üstünde belirlediğin süre boyunca kalırsa telefonuna bildirim
+    gönderir: odayı havalandırmanın ya da nemi düşürmenin zamanı. ABD Çevre Koruma Ajansı (EPA), küfün önüne geçmek
+    için iç ortamdaki bağıl nemin %60'ın altında, mümkünse %30 ile %50 arasında tutulmasını öneriyor. Bildirim her
+    yüksek nem döneminde bir kez gelir.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/nem-kuf-uyarisi/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/nem-kuf-uyarisi.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    sensorler:
+      name: Nem sensörleri
+      description: İzlenecek odaların nem sensörleri. Listede yalnızca nem sensörleri çıkar. Birden çok seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: sensor
+              device_class: humidity
+    esik:
+      name: Nem sınırı
+      description: Nem bu değerin üstünde kalınca süre saymaya başlar.
+      default: 60
+      selector:
+        number:
+          min: 40
+          max: 90
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+    sure:
+      name: Bekleme süresi
+      description: >-
+        Nem bu kadar süre sınırın üstünde kalırsa bildirim gelir. Duştan ya da yemek pişirmekten sonraki kısa
+        yükselmelerde bildirim gelmesin diye birkaç saat seç.
+      default:
+        hours: 3
+        minutes: 0
+        seconds: 0
+      selector:
+        duration: {}
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır). Birden çok telefon
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+
+mode: queued
+max: 10
+
+variables:
+  esik: !input esik
+  sure: !input sure
+  sure_metin: >-
+    {% set s = sure.hours | default(0) | int %}{% set d = sure.minutes | default(0) | int %}
+    {{ (((s ~ ' saat') if s else '') ~ (' ' if s and d else '') ~ ((d ~ ' dakika') if d else '')) or 'Bir süre' }}
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input sensorler
+    above: !input esik
+    for: !input sure
+
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      title: Nem uzun süredir yüksek
+      message: >-
+        {{ trigger.to_state.name }} {{ sure_metin }} boyunca %{{ esik | int }} sınırının üstünde kaldı, şu an
+        %{{ trigger.to_state.state | float(0) | round(0) | int }}. Odayı havalandırmanın ya da nemi düşürmenin zamanı.

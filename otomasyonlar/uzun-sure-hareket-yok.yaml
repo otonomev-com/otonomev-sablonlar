@@ -1,0 +1,57 @@
+alias: Yakınımın evinde uzun süre hareket yok
+description: >-
+  Yakınının evindeki hareket sensörlerinin hiçbiri 3 saat boyunca hareket görmezse, 11.00 ile 21.00 arasında
+  telefona bildirim gönderir; hareket yeniden görülünce ikinci bir bildirim gelir. Sağlık ya da acil durum sistemi
+  değildir. (OtonomEv, O19)
+mode: single
+max_exceeded: silent
+triggers:
+  - trigger: state
+    entity_id:
+      - binary_sensor.salon_hareket_sensoru   # (yakınının evindeki hareket sensörleri)
+      - binary_sensor.mutfak_hareket_sensoru
+    to: "off"
+    for:
+      hours: 3   # (hareketsiz süre)
+  - trigger: state
+    entity_id:
+      - binary_sensor.salon_hareket_sensoru   # (yukarıdakilerin aynısı)
+      - binary_sensor.mutfak_hareket_sensoru
+    to: unavailable
+    for:
+      hours: 3   # (hareketsiz süre)
+  - trigger: time
+    at: "11:00:00"   # (kontrol başlangıcı: kalkış saati + hareketsiz süre)
+conditions:
+  - condition: time
+    after: "11:00:00"   # (kontrol başlangıcı)
+    before: "21:00:00"   # (kontrol bitişi)
+  - condition: template
+    value_template: >-
+      {# (sensörler yukarıdakilerin aynısı, süre hareketsiz süreyle aynı) #}
+      {% set liste = expand('binary_sensor.salon_hareket_sensoru', 'binary_sensor.mutfak_hareket_sensoru') %}
+      {% set sinir = now() - timedelta(hours=3) %}
+      {{ liste | selectattr('state', 'eq', 'on') | list | count == 0
+         and liste | selectattr('last_changed', 'gt', sinir) | list | count == 0 }}
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      title: Uzun süredir hareket yok
+      message: "Seçtiğin sensörler uzun süredir hiç hareket görmedi (saat {{ now().strftime('%H:%M') }})."
+  - wait_for_trigger:
+      - trigger: state
+        entity_id:
+          - binary_sensor.salon_hareket_sensoru   # (yukarıdakilerin aynısı)
+          - binary_sensor.mutfak_hareket_sensoru
+        to: "on"
+    timeout:
+      hours: 12
+    continue_on_timeout: false
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (yukarıdakinin aynısı)
+    data:
+      title: Hareket yeniden görüldü
+      message: "{{ wait.trigger.to_state.name }} hareket gördü (saat {{ now().strftime('%H:%M') }})."

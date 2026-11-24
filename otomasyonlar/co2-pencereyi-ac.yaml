@@ -1,0 +1,34 @@
+alias: Karbondioksit yüksek, pencereyi aç
+description: >-
+  Odanın karbondioksiti 5 dakika boyunca 1000 ppm'in üstünde kalınca "pencereyi aç" bildirimi gönderir; değer
+  yeniden 1000 ppm'in altına inince "pencereyi kapatabilirsin" der. (OtonomEv, O23)
+mode: parallel
+max: 10
+triggers:
+  - trigger: numeric_state
+    entity_id:
+      - sensor.yatak_odasi_karbondioksit   # (kendi karbondioksit sensörlerinin varlık kimlikleri)
+    above: 1000   # (karbondioksit sınırı, ppm)
+    for:
+      minutes: 5   # (bekleme süresi)
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      title: Pencereyi aç
+      message: >-
+        {{ trigger.to_state.name }} şu an {{ trigger.to_state.state | float(0) | round(0) | int }} ppm. Odayı birkaç
+        dakika havalandırmanın zamanı.
+  - wait_template: "{{ states(trigger.entity_id) | float(1000) < 1000 }}"   # (iki sayı da yukarıdaki sınırla aynı)
+    timeout:
+      hours: 3
+    continue_on_timeout: false
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (yukarıdakinin aynısı)
+    data:
+      title: Pencereyi kapatabilirsin
+      message: >-
+        {{ state_attr(trigger.entity_id, 'friendly_name') or trigger.to_state.name }} şu an
+        {{ states(trigger.entity_id) | float(0) | round(0) | int }} ppm.

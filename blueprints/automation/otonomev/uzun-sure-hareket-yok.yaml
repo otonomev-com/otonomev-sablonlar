@@ -1,0 +1,140 @@
+blueprint:
+  name: Yakınının evinde uzun süre hareket olmazsa haber ver
+  description: >-
+    Yalnız yaşayan bir yakınının evindeki hareket sensörlerinin hiçbiri belirlediğin süre boyunca hareket görmezse
+    telefonuna bildirim gönderir. Yalnızca belirlediğin saatler arasında haber verir; hareket yeniden görülünce de
+    haber verebilir. Sağlık ya da acil durum sistemi değildir: düşmeyi ya da rahatsızlığı algılamaz, yalnızca hareket
+    olmadığını söyler. Yakınının bilgisi ve onayıyla kur.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/uzun-sure-hareket-yok/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/uzun-sure-hareket-yok.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    sensorler:
+      name: Hareket sensörleri
+      description: >-
+        Yakınının evindeki hareket ve varlık sensörleri. Gün içinde kullandığı odaların hepsini seç; yalnızca bir
+        odadaki sensör, başka odada oturan biri için yanlış uyarı verir.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - motion
+                - occupancy
+                - presence
+    sure:
+      name: Hareketsiz süre
+      description: Sensörlerin hiçbiri bu kadar süre hareket görmezse bildirim gelir.
+      default:
+        hours: 3
+        minutes: 0
+        seconds: 0
+      selector:
+        duration: {}
+    baslangic:
+      name: Kontrol başlangıcı
+      description: >-
+        Bu saatten önce bildirim gelmez. Yakının uyurken uyarı gelmesin diye genelde kalktığı saatten hareketsiz süre
+        kadar sonrasını seç (ör. 08.00'de kalkıyorsa ve süre 3 saatse 11.00). Bu saatte sabahtan beri hiç hareket
+        olmadıysa da bildirim gelir.
+      default: "11:00:00"
+      selector:
+        time: {}
+    bitis:
+      name: Kontrol bitişi
+      description: Bu saatten sonra bildirim gelmez (ör. yatma saati).
+      default: "21:00:00"
+      selector:
+        time: {}
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır). Birden çok telefon
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+    geri_bildirim:
+      name: Hareket yeniden görülünce de haber ver
+      description: Bildirimden sonra sensörlerden biri hareket görünce ikinci bir bildirim gelir.
+      default: true
+      selector:
+        boolean: {}
+
+mode: single
+max_exceeded: silent
+
+variables:
+  sensorler: !input sensorler
+  sure: !input sure
+  geri_bildirim: !input geri_bildirim
+  sure_sn: >-
+    {{ (sure.hours | default(0) | int) * 3600 + (sure.minutes | default(0) | int) * 60
+       + (sure.seconds | default(0) | int) }}
+  sure_metin: >-
+    {% set s = sure.hours | default(0) | int %}{% set d = sure.minutes | default(0) | int %}
+    {{ (((s ~ ' saat') if s else '') ~ (' ' if s and d else '') ~ ((d ~ ' dakika') if d else '')) or 'Bir süre' }}
+
+triggers:
+  # Son sensör de bu süre boyunca hareketsiz kalınca
+  - trigger: state
+    entity_id: !input sensorler
+    to: "off"
+    for: !input sure
+  # Sensör bu süre boyunca çevrimdışı kalınca (pil bitmesi, bağlantı kopması)
+  - trigger: state
+    entity_id: !input sensorler
+    to: unavailable
+    for: !input sure
+  # Kontrol başlarken: gece boyunca ve sabah hiç hareket olmadıysa
+  - trigger: time
+    at: !input baslangic
+
+conditions:
+  - condition: time
+    after: !input baslangic
+    before: !input bitis
+  # Hiçbir sensör şu an hareket görmüyor ve hiçbiri son "Hareketsiz süre" içinde değişmedi
+  - condition: template
+    value_template: >-
+      {% set liste = expand(sensorler) %}
+      {% set sinir = now() - timedelta(seconds=sure_sn | int) %}
+      {{ liste | count > 0
+         and liste | selectattr('state', 'eq', 'on') | list | count == 0
+         and liste | selectattr('last_changed', 'gt', sinir) | list | count == 0 }}
+
+actions:
+  - variables:
+      kapali: >-
+        {{ expand(sensorler) | selectattr('state', 'in', ['unavailable', 'unknown']) | map(attribute='name') | list }}
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      title: Uzun süredir hareket yok
+      message: >-
+        Seçtiğin sensörler {{ sure_metin }} boyunca hiç hareket görmedi (saat {{ now().strftime('%H:%M') }}).{{
+        (' Çevrimdışı sensör: ' ~ (kapali | join(', ')) ~ '.') if kapali | count > 0 else '' }}
+  - if:
+      - condition: template
+        value_template: "{{ geri_bildirim }}"
+    then:
+      - wait_for_trigger:
+          - trigger: state
+            entity_id: !input sensorler
+            to: "on"
+        timeout:
+          hours: 12
+        continue_on_timeout: false
+      - action: notify.send_message
+        target:
+          entity_id: !input bildirim
+        data:
+          title: Hareket yeniden görüldü
+          message: "{{ wait.trigger.to_state.name }} hareket gördü (saat {{ now().strftime('%H:%M') }})."

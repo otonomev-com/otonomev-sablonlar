@@ -1,0 +1,102 @@
+blueprint:
+  name: Karbondioksit yükselince pencereyi açmayı hatırlat
+  description: >-
+    Odadaki karbondioksit belirlediğin değerin üstünde birkaç dakika kalınca telefonuna "pencereyi aç" bildirimi
+    gönderir; değer yeniden altına inince "pencereyi kapatabilirsin" der. Almanya'da iç ortam havası için değer
+    belirleyen komisyon (AIR, Federal Çevre Ajansı UBA bünyesinde), 1000 ile 2000 ppm arasında havalandırmanın
+    artırılmasını öneriyor.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/co2-pencereyi-ac/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/co2-pencereyi-ac.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    sensorler:
+      name: Karbondioksit sensörleri
+      description: >-
+        İzlenecek odaların karbondioksit (CO₂) sensörleri. Listede yalnızca karbondioksit sensörleri çıkar. Birden çok
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: sensor
+              device_class: carbon_dioxide
+    esik:
+      name: Karbondioksit sınırı
+      description: Karbondioksit bu değerin üstünde kalınca "pencereyi aç" bildirimi gelir.
+      default: 1000
+      selector:
+        number:
+          min: 600
+          max: 3000
+          step: 50
+          unit_of_measurement: ppm
+          mode: box
+    sure:
+      name: Bekleme süresi
+      description: Değer bu kadar süre sınırın üstünde kalınca bildirim gelir; kısa yükselmelerde bildirim gelmez.
+      default:
+        hours: 0
+        minutes: 5
+        seconds: 0
+      selector:
+        duration: {}
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır). Birden çok telefon
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+    kapat_bildirimi:
+      name: Değer inince pencereyi kapatmayı hatırlat
+      description: >-
+        Karbondioksit sınırın altına inince "pencereyi kapatabilirsin" bildirimi gelir. Üç saat içinde inmezse bu
+        bildirim gelmez.
+      default: true
+      selector:
+        boolean: {}
+
+mode: parallel
+max: 10
+
+variables:
+  esik: !input esik
+  kapat_bildirimi: !input kapat_bildirimi
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input sensorler
+    above: !input esik
+    for: !input sure
+
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      title: Pencereyi aç
+      message: >-
+        {{ trigger.to_state.name }} şu an {{ trigger.to_state.state | float(0) | round(0) | int }} ppm. Odayı birkaç
+        dakika havalandırmanın zamanı.
+  - if:
+      - condition: template
+        value_template: "{{ kapat_bildirimi }}"
+    then:
+      - wait_template: "{{ states(trigger.entity_id) | float(esik) < esik }}"
+        timeout:
+          hours: 3
+        continue_on_timeout: false
+      - action: notify.send_message
+        target:
+          entity_id: !input bildirim
+        data:
+          title: Pencereyi kapatabilirsin
+          message: >-
+            {{ state_attr(trigger.entity_id, 'friendly_name') or trigger.to_state.name }} şu an
+            {{ states(trigger.entity_id) | float(0) | round(0) | int }} ppm.

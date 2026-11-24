@@ -1,0 +1,23 @@
+alias: Nem uzun süredir yüksek
+description: >-
+  Odanın nemi 3 saat boyunca %60'ın üstünde kalırsa telefona bildirim gönderir; her yüksek nem döneminde bir kez.
+  (OtonomEv, O41)
+mode: queued
+max: 10
+triggers:
+  - trigger: numeric_state
+    entity_id:
+      - sensor.yatak_odasi_nemi   # (kendi nem sensörlerinin varlık kimlikleri)
+      - sensor.banyo_nemi
+    above: 60   # (nem sınırı, %)
+    for:
+      hours: 3   # (bekleme süresi)
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      title: Nem uzun süredir yüksek
+      message: >-
+        {{ trigger.to_state.name }} uzun süredir sınırın üstünde, şu an %{{ trigger.to_state.state | float(0) | round(0) | int }}.
+        Odayı havalandırmanın ya da nemi düşürmenin zamanı.
