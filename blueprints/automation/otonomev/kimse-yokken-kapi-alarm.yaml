@@ -1,0 +1,114 @@
+blueprint:
+  name: Evde kimse yokken kapı açılınca siren çal ve haber ver
+  description: >-
+    Evde kimse yokken seçtiğin kapı ya da pencere açılırsa telefonuna hemen bildirim gönderir. Siren seçtiysen kısa bir
+    bekleme süresinden sonra evde hâlâ kimse yoksa sireni belirlediğin süre çalar. Evde kimse olmadığını, Home Assistant
+    uygulaması kurulu telefonların konumundan anlar. Lisanslı bir alarm sisteminin ya da izleme merkezinin yerini tutmaz.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/kimse-yokken-kapi-alarm/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/kimse-yokken-kapi-alarm.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    sensorler:
+      name: Kapı ve pencere sensörleri
+      description: >-
+        İzlenecek sensörler. Listede yalnızca kapı, pencere, garaj kapısı ve açılma sensörleri çıkar. Birden çok
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - door
+                - window
+                - garage_door
+                - opening
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır). Birden çok telefon
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+    siren:
+      name: Siren
+      description: Çalacak siren. Siren istemiyorsan boş bırak; yalnızca bildirim gelir.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: siren
+    bekleme:
+      name: Siren öncesi bekleme
+      description: >-
+        Kapı açıldıktan sonra siren çalmadan önce kaç saniye beklensin. Bu sürede telefonu yanında olan biri eve gelmiş
+        görünürse siren çalmaz. Eve gelirken telefonun konumu geç güncellenebilir; süreyi çok kısa tutarsan eve dönen
+        biri için de siren çalabilir.
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 10
+          unit_of_measurement: saniye
+          mode: box
+    sure:
+      name: Siren süresi
+      description: Siren kaç dakika çalsın. Komşuları rahatsız etmemek için kısa tut.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+
+mode: single
+max_exceeded: silent
+
+variables:
+  siren: !input siren
+
+triggers:
+  - trigger: state
+    entity_id: !input sensorler
+    from: "off"
+    to: "on"
+
+conditions:
+  - condition: state
+    entity_id: zone.home
+    state: "0"
+
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      title: Evde kimse yokken açıldı
+      message: "{{ trigger.to_state.name if trigger.to_state is defined else 'Kapı' }} açıldı, saat {{ now().strftime('%H:%M') }}."
+  - if:
+      - condition: template
+        value_template: "{{ siren | count > 0 }}"
+    then:
+      - delay:
+          seconds: !input bekleme
+      - condition: state
+        entity_id: zone.home
+        state: "0"
+      - action: siren.turn_on
+        target:
+          entity_id: !input siren
+      - delay:
+          minutes: !input sure
+      - action: siren.turn_off
+        target:
+          entity_id: !input siren

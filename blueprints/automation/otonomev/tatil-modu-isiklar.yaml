@@ -1,0 +1,151 @@
+blueprint:
+  name: Tatildeyken evde biri varmış gibi ışıkları yak
+  description: >-
+    Tatil modu açıkken akşam gün batımında akşam ışıklarını (ör. salon) yakar. Yatma saatinde onları söndürüp gece
+    ışıklarını (ör. yatak odası) yakar, kapanış saatinde onları da söndürür. Her adım seçtiğin kadar rastgele gecikir;
+    ışıklar her akşam aynı dakikada yanıp sönmez. Tatil modu bir geçiş (aç/kapa) yardımcısıdır: tatile çıkarken açar,
+    dönünce kapatırsın. Bu otomasyon bir güvenlik sistemi değildir.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/tatil-modu-isiklar/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/tatil-modu-isiklar.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    tatil_modu:
+      name: Tatil modu
+      description: Tatildeyken açtığın geçiş (aç/kapa) yardımcısı. Kapalıyken otomasyon hiçbir şey yapmaz.
+      selector:
+        entity:
+          filter:
+            - domain: input_boolean
+    aksam_isiklari:
+      name: Akşam ışıkları
+      description: >-
+        Gün batımında yanıp yatma saatinde sönecek ışıklar (ör. salon). Akıllı anahtar, röle ya da akıllı priz de
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain:
+                - light
+                - switch
+    zaman_farki:
+      name: Gün batımına göre zaman farkı
+      description: >-
+        Akşam ışıkları tam gün batımında mı yansın, yoksa önce ya da sonra mı? Önce ya da Sonra'yı seçip süreyi yaz.
+        Boş bırakırsan tam gün batımında yanar.
+      default:
+        hours: 0
+        minutes: 0
+        seconds: 0
+      selector:
+        duration:
+          mode: offset
+    gece_isiklari:
+      name: Gece ışıkları
+      description: >-
+        Yatma saatinde yanıp kapanış saatinde sönecek ışıklar (ör. yatak odası). İstemezsen boş bırak; o zaman yatma
+        saatinde yalnızca akşam ışıkları söner.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain:
+                - light
+                - switch
+    yatma_saati:
+      name: Yatma saati
+      description: Akşam ışıkları bu saatte söner, gece ışıkları yanar.
+      default: "23:00:00"
+      selector:
+        time:
+    kapanis_saati:
+      name: Kapanış saati
+      description: >-
+        Gece ışıkları bu saatte söner. Yatma saatinden sonra olmalı; gece yarısından sonraki bir saat de olabilir
+        (ör. 00:30).
+      default: "23:45:00"
+      selector:
+        time:
+    rastgele:
+      name: Rastgele gecikme
+      description: >-
+        Her adım 0 ile bu kadar dakika arasında rastgele gecikir. 0 yazarsan ışıklar tam saatinde yanar ve söner.
+        Yatma ve kapanış saatleri arasındaki farktan kısa tut.
+      default: 15
+      selector:
+        number:
+          min: 0
+          max: 60
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+
+mode: queued
+max: 10
+max_exceeded: silent
+
+variables:
+  tatil_modu: !input tatil_modu
+  gece_isiklari: !input gece_isiklari
+  rastgele: !input rastgele
+
+triggers:
+  - trigger: sun
+    event: sunset
+    offset: !input zaman_farki
+    id: aksam
+  - trigger: time
+    at: !input yatma_saati
+    id: yatma
+  - trigger: time
+    at: !input kapanis_saati
+    id: kapanis
+
+conditions:
+  - condition: state
+    entity_id: !input tatil_modu
+    state: "on"
+
+actions:
+  - delay:
+      seconds: "{{ range(0, (rastgele | int(0)) * 60 + 1) | random }}"
+  # Bekleme sırasında tatil modu kapatıldıysa (eve dönüldüyse) dur.
+  - condition: template
+    value_template: "{{ is_state(tatil_modu, 'on') }}"
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: aksam
+        sequence:
+          - action: homeassistant.turn_on
+            target:
+              entity_id: !input aksam_isiklari
+      - conditions:
+          - condition: trigger
+            id: yatma
+        sequence:
+          - action: homeassistant.turn_off
+            target:
+              entity_id: !input aksam_isiklari
+          - if:
+              - condition: template
+                value_template: "{{ gece_isiklari | count > 0 }}"
+            then:
+              - action: homeassistant.turn_on
+                target:
+                  entity_id: !input gece_isiklari
+      - conditions:
+          - condition: trigger
+            id: kapanis
+        sequence:
+          - if:
+              - condition: template
+                value_template: "{{ gece_isiklari | count > 0 }}"
+            then:
+              - action: homeassistant.turn_off
+                target:
+                  entity_id: !input gece_isiklari

@@ -1,0 +1,29 @@
+alias: Perde sabah açık, akşam kapalı
+description: >-
+  Salon perdesini hafta içi 07:30'da, hafta sonu 09:30'da açar; her akşam gün batımında kapatır. (OtonomEv, O14)
+mode: single
+max_exceeded: silent
+triggers:
+  - trigger: time
+    at: "07:30:00"   # (hafta içi açılış saati)
+    weekday: [mon, tue, wed, thu, fri]
+    id: ac
+  - trigger: time
+    at: "09:30:00"   # (hafta sonu açılış saati)
+    weekday: [sat, sun]
+    id: ac
+  - trigger: sun
+    event: sunset
+    id: kapat
+actions:
+  - if:
+      - condition: trigger
+        id: ac
+    then:
+      - action: cover.open_cover
+        target:
+          entity_id: cover.salon_perdesi   # (kendi perdenin varlık kimliği)
+    else:
+      - action: cover.close_cover
+        target:
+          entity_id: cover.salon_perdesi   # (yukarıdakinin aynısı)

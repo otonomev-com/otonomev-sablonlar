@@ -1,0 +1,95 @@
+blueprint:
+  name: Perdeyi sabah saatinde aç, akşam gün batımında kapat
+  description: >-
+    Seçtiğin motorlu perdeleri, storları ya da panjurları her sabah belirlediğin saatte açar, akşam gün batımında
+    kapatır. Hafta sonu için ayrı bir açılış saati seçebilirsin. Garaj kapısı ya da bahçe kapısı seçme; Home
+    Assistant'ın garaj kapısı, bahçe kapısı ya da kapı olarak tanıdığı kapaklar seçilse bile açılıp kapanmaz.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/perde-sabah-aksam/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/perde-sabah-aksam.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    perdeler:
+      name: Perdeler
+      description: >-
+        Açılıp kapanacak motorlu perde, stor ya da panjurlar. Birden çok seçebilirsin. Garaj kapısı ya da bahçe kapısı
+        seçme; onlar için bu otomasyon uygun değil.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: cover
+    hafta_ici:
+      name: Hafta içi açılış saati
+      description: Pazartesiden cumaya perdeler bu saatte açılır.
+      default: "07:30:00"
+      selector:
+        time:
+    hafta_sonu:
+      name: Hafta sonu açılış saati
+      description: Cumartesi ve pazar perdeler bu saatte açılır.
+      default: "09:30:00"
+      selector:
+        time:
+    zaman_farki:
+      name: Gün batımına göre zaman farkı
+      description: >-
+        Perdeler tam gün batımında mı kapansın, yoksa önce ya da sonra mı? Önce ya da Sonra'yı seçip süreyi yaz.
+        Boş bırakırsan tam gün batımında kapanır.
+      default:
+        hours: 0
+        minutes: 0
+        seconds: 0
+      selector:
+        duration:
+          mode: offset
+
+mode: single
+max_exceeded: silent
+
+variables:
+  perdeler: !input perdeler
+  # Garaj kapısı, bahçe kapısı ya da kapı olarak tanınan kapaklar yanlışlıkla seçildiyse onlara dokunulmaz.
+  hedef: >-
+    {% set secilen = [perdeler] if perdeler is string else perdeler %}
+    {{ secilen | reject('is_state_attr', 'device_class', 'garage')
+               | reject('is_state_attr', 'device_class', 'gate')
+               | reject('is_state_attr', 'device_class', 'door') | list }}
+
+triggers:
+  - trigger: time
+    at: !input hafta_ici
+    weekday:
+      - mon
+      - tue
+      - wed
+      - thu
+      - fri
+    id: ac
+  - trigger: time
+    at: !input hafta_sonu
+    weekday:
+      - sat
+      - sun
+    id: ac
+  - trigger: sun
+    event: sunset
+    offset: !input zaman_farki
+    id: kapat
+
+actions:
+  - condition: template
+    value_template: "{{ hedef | count > 0 }}"
+  - if:
+      - condition: trigger
+        id: ac
+    then:
+      - action: cover.open_cover
+        target:
+          entity_id: "{{ hedef }}"
+    else:
+      - action: cover.close_cover
+        target:
+          entity_id: "{{ hedef }}"

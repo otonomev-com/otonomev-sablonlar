@@ -1,0 +1,35 @@
+alias: Evde kimse yokken kapı açıldı
+description: >-
+  Evde kimse yokken kapı açılırsa telefona bildirim gönderir; 1 dakika sonra evde hâlâ kimse yoksa sireni 2 dakika
+  çalar. (OtonomEv, O39)
+mode: single
+max_exceeded: silent
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.antre_kapisi   # (kendi kapı sensörünün varlık kimliği)
+    from: "off"
+    to: "on"
+conditions:
+  - condition: state
+    entity_id: zone.home
+    state: "0"   # (evdeki kişi sayısı; 0 = evde kimse yok)
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      title: Evde kimse yokken açıldı
+      message: "{{ trigger.to_state.name if trigger.to_state is defined else 'Kapı' }} açıldı, saat {{ now().strftime('%H:%M') }}."
+  - delay:
+      seconds: 60   # (siren öncesi bekleme)
+  - condition: state
+    entity_id: zone.home
+    state: "0"   # (bu sürede eve biri geldiyse siren çalmaz)
+  - action: siren.turn_on
+    target:
+      entity_id: siren.siren   # (kendi sireninin varlık kimliği)
+  - delay:
+      minutes: 2   # (siren süresi)
+  - action: siren.turn_off
+    target:
+      entity_id: siren.siren   # (yukarıdakinin aynısı)

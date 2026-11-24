@@ -1,0 +1,51 @@
+alias: Tatil modu ışıkları
+description: >-
+  Tatil modu açıkken gün batımında salon ışığını yakar, 23:00'te söndürüp yatak odasının ışığını yakar, 23:45'te onu da
+  söndürür. Her adım 0–15 dakika rastgele gecikir. (OtonomEv, O20)
+mode: queued
+max_exceeded: silent
+triggers:
+  - trigger: sun
+    event: sunset
+    id: aksam
+  - trigger: time
+    at: "23:00:00"   # (yatma saati)
+    id: yatma
+  - trigger: time
+    at: "23:45:00"   # (kapanış saati)
+    id: kapanis
+conditions:
+  - condition: state
+    entity_id: input_boolean.tatil_modu   # (tatil modu yardımcının varlık kimliği)
+    state: "on"
+actions:
+  - delay:
+      seconds: "{{ range(0, 15 * 60 + 1) | random }}"
+  - condition: state
+    entity_id: input_boolean.tatil_modu   # (yukarıdakinin aynısı)
+    state: "on"
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: aksam
+        sequence:
+          - action: homeassistant.turn_on
+            target:
+              entity_id: light.salon   # (akşam yanacak ışık)
+      - conditions:
+          - condition: trigger
+            id: yatma
+        sequence:
+          - action: homeassistant.turn_off
+            target:
+              entity_id: light.salon   # (yukarıdakinin aynısı)
+          - action: homeassistant.turn_on
+            target:
+              entity_id: light.yatak_odasi   # (yatma saatinde yanacak ışık)
+      - conditions:
+          - condition: trigger
+            id: kapanis
+        sequence:
+          - action: homeassistant.turn_off
+            target:
+              entity_id: light.yatak_odasi   # (yukarıdakinin aynısı)

@@ -1,0 +1,20 @@
+alias: Takvim hatırlatması
+description: Takvimdeki her etkinlikten 30 dakika önce telefona bildirim gönderir; tüm gün süren etkinlikleri atlar. (OtonomEv, O13)
+mode: queued
+max_exceeded: silent
+triggers:
+  - trigger: calendar
+    event: start
+    entity_id: calendar.ev   # (kendi takviminin varlık kimliği)
+    offset: "-00:30:00"   # (ne kadar önce; eksi işareti "önce" demek)
+conditions:
+  - condition: template
+    value_template: "{{ not trigger.calendar_event.all_day }}"
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      title: Yaklaşan etkinlik
+      message: >-
+        {{ trigger.calendar_event.summary }}, saat {{ as_local(as_datetime(trigger.calendar_event.start)).strftime('%H:%M') }}

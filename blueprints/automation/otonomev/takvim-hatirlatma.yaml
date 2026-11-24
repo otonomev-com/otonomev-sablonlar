@@ -1,0 +1,89 @@
+blueprint:
+  name: Takvimdeki etkinlikten önce telefona hatırlatma gönder
+  description: >-
+    Seçtiğin takvimdeki her etkinlik başlamadan belirlediğin süre önce telefonuna bildirim gönderir. Bildirimde
+    etkinliğin adı ve başlangıç saati yazar. İstersen yalnızca adında belli bir kelime geçen etkinlikler için
+    hatırlatır; tüm gün süren etkinlikleri atlar.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/takvim-hatirlatma/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/takvim-hatirlatma.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    takvim:
+      name: Takvim
+      description: >-
+        Hatırlatılacak etkinliklerin takvimi. Home Assistant'ın Yerel takvimi ya da bağladığın bir takvim (ör. Google
+        Takvim) olabilir.
+      selector:
+        entity:
+          filter:
+            - domain: calendar
+    once:
+      name: Ne kadar önce
+      description: Etkinlik başlamadan ne kadar önce haber versin. Önce'yi seçip süreyi yaz.
+      default:
+        hours: 0
+        minutes: -30
+        seconds: 0
+      selector:
+        duration:
+          mode: offset
+    kelime:
+      name: Yalnızca adında bu kelime geçenler
+      description: >-
+        Örneğin "Doktor" yazarsan yalnızca adında Doktor geçen etkinlikler için hatırlatır. Kelimeyi etkinliğin adında
+        yazdığın gibi yaz. Boş bırakırsan her etkinlik için hatırlatır.
+      default: ""
+      selector:
+        text:
+    tum_gun:
+      name: Tüm gün süren etkinlikleri de hatırlat
+      description: >-
+        Kapalıyken doğum günü, tatil gibi tüm gün süren etkinlikler için bildirim gelmez (bunlar gece yarısı başlar).
+      default: false
+      selector:
+        boolean:
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır).
+        Birden çok telefon seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+
+mode: queued
+max: 10
+max_exceeded: silent
+
+variables:
+  kelime: !input kelime
+  tum_gun: !input tum_gun
+
+triggers:
+  - trigger: calendar
+    event: start
+    entity_id: !input takvim
+    offset: !input once
+
+conditions:
+  - condition: template
+    value_template: "{{ tum_gun or not trigger.calendar_event.all_day }}"
+  - condition: template
+    value_template: >-
+      {{ kelime | trim == '' or kelime | trim in trigger.calendar_event.summary
+         or (kelime | trim | lower) in (trigger.calendar_event.summary | lower) }}
+
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      title: Yaklaşan etkinlik
+      message: >-
+        {%- set bas = as_datetime(trigger.calendar_event.start) -%}
+        {{ trigger.calendar_event.summary }}{{ ', saat ' ~ as_local(bas).strftime('%H:%M') if not trigger.calendar_event.all_day else ' (tüm gün)' }}

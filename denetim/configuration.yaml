@@ -192,4 +192,44 @@ automation sablonlar:
         iklimlendirme:
           - climate.kombi
 
+  - id: denetim_tatil_modu_isiklar
+    alias: "Denetim: Tatil modu ışıkları"
+    use_blueprint:
+      path: otonomev/tatil-modu-isiklar.yaml
+      input:
+        tatil_modu: input_boolean.tatil_modu
+        aksam_isiklari:
+          - light.salon
+        gece_isiklari:
+          - light.yatak_odasi
+
+  - id: denetim_takvim_hatirlatma
+    alias: "Denetim: Takvim hatırlatması"
+    use_blueprint:
+      path: otonomev/takvim-hatirlatma.yaml
+      input:
+        takvim: calendar.ev
+        bildirim:
+          - notify.telefon
+
+  - id: denetim_kimse_yokken_kapi_alarm
+    alias: "Denetim: Evde kimse yokken kapı açıldı"
+    use_blueprint:
+      path: otonomev/kimse-yokken-kapi-alarm.yaml
+      input:
+        sensorler:
+          - binary_sensor.antre_kapisi
+        bildirim:
+          - notify.telefon
+        siren:
+          - siren.siren
+
+  - id: denetim_perde_sabah_aksam
+    alias: "Denetim: Perde sabah açık, akşam kapalı"
+    use_blueprint:
+      path: otonomev/perde-sabah-aksam.yaml
+      input:
+        perdeler:
+          - cover.salon_perdesi
+
 automation duz: !include_dir_list otomasyonlar
