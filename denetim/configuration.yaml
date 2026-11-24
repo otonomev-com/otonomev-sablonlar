@@ -13,6 +13,17 @@ homeassistant:
   time_zone: Europe/Istanbul
 
 automation sablonlar:
+  - id: denetim_acik_kalan_isik_cihaz
+    alias: "Denetim: Açık kalan ışık ya da cihaz"
+    use_blueprint:
+      path: otonomev/acik-kalan-isik-cihaz.yaml
+      input:
+        cihazlar:
+          - light.cocuk_odasi
+        ne_yapsin: ikisi
+        bildirim:
+          - notify.telefon
+
   - id: denetim_acik_kalan_kapi_pencere
     alias: "Denetim: Açık kalan kapı ya da pencere"
     use_blueprint:
@@ -22,6 +33,14 @@ automation sablonlar:
           - binary_sensor.balkon_kapisi
         bildirim:
           - notify.telefon
+
+  - id: denetim_banyo_nem_fan
+    alias: "Denetim: Banyoda nem yükselince fan"
+    use_blueprint:
+      path: otonomev/banyo-nem-fan.yaml
+      input:
+        nem_sensoru: sensor.banyo_nem
+        fan: fan.banyo_fani
 
   - id: denetim_banyoya_girince_muzik
     alias: "Denetim: Banyoya girince müzik"
@@ -107,6 +126,15 @@ automation sablonlar:
         isik:
           - light.koridor
 
+  - id: denetim_isitma_programi
+    alias: "Denetim: Isıtma programı"
+    use_blueprint:
+      path: otonomev/isitma-programi.yaml
+      input:
+        program: schedule.isitma_programi
+        termostatlar:
+          - climate.kombi
+
   - id: denetim_oda_soguyunca_isitma
     alias: "Denetim: Oda soğuyunca ısıtma"
     use_blueprint:
@@ -145,5 +173,13 @@ automation sablonlar:
           - notify.telefon
         vanalar:
           - valve.ana_su_vanasi
+
+  - id: denetim_yilbasi_isiklari
+    alias: "Denetim: Yılbaşı ışıkları"
+    use_blueprint:
+      path: otonomev/yilbasi-isiklari.yaml
+      input:
+        isiklar:
+          - switch.sus_isiklari
 
 automation duz: !include_dir_list otomasyonlar

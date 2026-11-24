@@ -1,0 +1,20 @@
+alias: Isıtma programı
+description: Zamanlamanın bloğu başlayınca termostatı 21 °C'ye, bitince 17 °C'ye ayarlar. (OtonomEv, O40)
+mode: queued
+max_exceeded: silent
+triggers:
+  - trigger: state
+    entity_id: schedule.isitma_programi   # (Zamanlama yardımcısının varlık kimliği)
+    to: "on"
+    id: basladi
+  - trigger: state
+    entity_id: schedule.isitma_programi   # (yukarıdakinin aynısı)
+    to: "off"
+    id: bitti
+conditions: []
+actions:
+  - action: climate.set_temperature
+    target:
+      entity_id: climate.kombi   # (termostatının ya da radyatör vanasının varlık kimliği)
+    data:
+      temperature: "{{ 21 if trigger.id == 'basladi' else 17 }}"   # (21: programdaki saatlerde, 17: program dışında)

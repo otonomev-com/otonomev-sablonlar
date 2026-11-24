@@ -1,0 +1,60 @@
+blueprint:
+  name: Yılbaşı ışıklarını saate göre aç-kapat
+  description: >-
+    Yılbaşı ağacının, pencere ya da balkon süslerinin ışıklarını her gün seçtiğin saatte açar, seçtiğin saatte kapatır.
+    Işıklar bir akıllı prize takılıysa prizi seç. Süsleri kaldırınca otomasyonu kapat.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/yilbasi-isiklari/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/yilbasi-isiklari.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    isiklar:
+      name: Süs ışıkları
+      description: >-
+        Açılıp kapanacak ışıklar. Süs ışıkları bir akıllı prize takılıysa prizi seç; Home Assistant akıllı prizi anahtar
+        olarak gösterir. Birden çok seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain:
+                - switch
+                - light
+    acilis:
+      name: Açılış saati
+      description: Işıklar her gün bu saatte yanar.
+      default: "17:30:00"
+      selector:
+        time:
+    kapanis:
+      name: Kapanış saati
+      description: Işıklar her gün bu saatte söner. Gece yarısından sonraki bir saat de olabilir (ör. 01:00).
+      default: "23:30:00"
+      selector:
+        time:
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: time
+    at: !input acilis
+    id: ac
+  - trigger: time
+    at: !input kapanis
+    id: kapat
+
+actions:
+  - if:
+      - condition: trigger
+        id: ac
+    then:
+      - action: homeassistant.turn_on
+        target:
+          entity_id: !input isiklar
+    else:
+      - action: homeassistant.turn_off
+        target:
+          entity_id: !input isiklar

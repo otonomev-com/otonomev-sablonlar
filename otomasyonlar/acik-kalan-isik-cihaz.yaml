@@ -1,0 +1,21 @@
+alias: Açık kalan ışığı kapat
+description: Işık 1 saat açık kalınca kapatır ve telefona haber verir. (OtonomEv, O38)
+mode: parallel
+max_exceeded: silent
+triggers:
+  - trigger: state
+    entity_id:
+      - light.cocuk_odasi   # (izlenecek ışığın ya da prizin varlık kimliği; alt alta birden çok yazabilirsin)
+    to: "on"
+    for:
+      minutes: 60   # (kaç dakika açık kalınca)
+conditions: []
+actions:
+  - action: homeassistant.turn_off
+    target:
+      entity_id: "{{ trigger.entity_id }}"
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      message: "{{ trigger.to_state.name }} 1 saattir açıktı, kapatıldı."   # (süreyi değiştirdiysen buradaki süreyi de değiştir)

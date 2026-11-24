@@ -1,0 +1,97 @@
+blueprint:
+  name: Işık ya da cihaz uzun süre açık kalınca haber ver ya da kapat
+  description: >-
+    Seçtiğin ışık, akıllı priz ya da fan belirlediğin süreden uzun açık kalırsa telefonuna haber verir, onu kapatır ya da
+    ikisini birden yapar. Süre dolmadan kapanırsa hiçbir şey olmaz. Her cihazın süresi ayrı sayılır.
+    Sürekli çalışması gereken bir cihazın (buzdolabı, modem, akvaryum pompası, sağlık cihazı) prizi için kapatmayı seçme.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/acik-kalan-isik-cihaz/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/acik-kalan-isik-cihaz.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    cihazlar:
+      name: Işıklar ve cihazlar
+      description: >-
+        İzlenecek ışıklar, akıllı prizler (Home Assistant'ta anahtar olarak görünür) ve fanlar. Birden çok seçebilirsin;
+        her birinin süresi ayrı sayılır.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: light
+            - domain: switch
+            - domain: fan
+    sure:
+      name: Süre
+      description: Kaç dakika açık kalınca harekete geçsin. 60 dakika 1 saat, 120 dakika 2 saat eder.
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+    ne_yapsin:
+      name: Ne yapsın?
+      description: Süre dolunca yalnızca haber versin, yalnızca kapatsın ya da kapatıp haber versin.
+      default: bildir
+      selector:
+        select:
+          options:
+            - label: Yalnızca haber ver
+              value: bildir
+            - label: Yalnızca kapat
+              value: kapat
+            - label: Kapat ve haber ver
+              value: ikisi
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır). Birden çok telefon
+        seçebilirsin. Yalnızca kapat'ı seçtiysen boş bırakabilirsin.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+
+mode: parallel
+max_exceeded: silent
+
+variables:
+  ne_yapsin: !input ne_yapsin
+  bildirim: !input bildirim
+  sure: !input sure
+
+triggers:
+  - trigger: state
+    entity_id: !input cihazlar
+    to: "on"
+    for:
+      minutes: !input sure
+
+actions:
+  - variables:
+      sure_metni: >-
+        {% set dk = sure | int(0) %}{% if dk >= 60 and dk % 60 == 0 %}{{ dk // 60 }} saattir{% else %}{{ dk }} dakikadır{% endif %}
+  - if:
+      - condition: template
+        value_template: "{{ ne_yapsin in ['kapat', 'ikisi'] }}"
+    then:
+      - action: homeassistant.turn_off
+        target:
+          entity_id: "{{ trigger.entity_id }}"
+  - if:
+      - condition: template
+        value_template: "{{ ne_yapsin in ['bildir', 'ikisi'] and bildirim | length > 0 }}"
+    then:
+      - action: notify.send_message
+        target:
+          entity_id: !input bildirim
+        data:
+          message: >-
+            {{ trigger.to_state.name }} {{ sure_metni }} {{ 'açıktı, kapatıldı.' if ne_yapsin == 'ikisi' else 'açık.' }}

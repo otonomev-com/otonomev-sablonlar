@@ -1,0 +1,76 @@
+blueprint:
+  name: "Isıtma programı: saate ve güne göre oda sıcaklığı"
+  description: >-
+    Seçtiğin zamanlamanın bir bloğu başlayınca termostatı ya da radyatör vanasını konfor sıcaklığına, blok bitince düşük
+    sıcaklığa ayarlar. Hangi gün hangi saatlerde sıcak olacağını Home Assistant'ın Zamanlama yardımcısında çizersin; hafta
+    içi ve hafta sonu farklı saatler verebilirsin. Otomasyon yalnızca hedef sıcaklığı değiştirir, kombiyi açıp kapatmaz.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/isitma-programi/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/isitma-programi.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    program:
+      name: Isıtma programı
+      description: >-
+        Sıcak olmasını istediğin saatleri gösteren Zamanlama yardımcısı. Ayarlar → Cihazlar ve hizmetler → Yardımcılar'da
+        oluşturulur.
+      selector:
+        entity:
+          filter:
+            - domain: schedule
+    termostatlar:
+      name: Termostatlar
+      description: Hedef sıcaklığı ayarlanacak termostatlar ya da akıllı radyatör vanaları. Birden çok seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: climate
+    konfor:
+      name: Konfor sıcaklığı
+      description: Programdaki saatlerde istenen oda sıcaklığı.
+      default: 21
+      selector:
+        number:
+          min: 5
+          max: 30
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: slider
+    dusuk:
+      name: Düşük sıcaklık
+      description: Program dışındaki saatlerde (gece, evde olmadığın saatler) istenen oda sıcaklığı.
+      default: 17
+      selector:
+        number:
+          min: 5
+          max: 30
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: slider
+
+mode: queued
+max_exceeded: silent
+
+variables:
+  konfor: !input konfor
+  dusuk: !input dusuk
+
+triggers:
+  - trigger: state
+    entity_id: !input program
+    to: "on"
+    id: basladi
+  - trigger: state
+    entity_id: !input program
+    to: "off"
+    id: bitti
+
+actions:
+  - action: climate.set_temperature
+    target:
+      entity_id: !input termostatlar
+    data:
+      temperature: "{{ konfor if trigger.id == 'basladi' else dusuk }}"

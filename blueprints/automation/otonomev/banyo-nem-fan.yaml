@@ -1,0 +1,89 @@
+blueprint:
+  name: Banyoda nem yükselince fanı çalıştır
+  description: >-
+    Banyodaki nem sensörü belirlediğin değerin üstüne çıkınca fanı çalıştırır. Nem yeniden düşüp 2 dakika öyle kalınca
+    fanı kapatır. Nem bir türlü düşmezse fan en çok belirlediğin süre kadar çalışır.
+    Fan bir röleye ya da akıllı prize bağlıysa röleyi ya da prizi seç.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/banyo-nem-fan/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/banyo-nem-fan.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    nem_sensoru:
+      name: Nem sensörü
+      description: Banyodaki nem sensörü. Listede yalnızca nem sensörleri çıkar.
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: humidity
+    fan:
+      name: Fan
+      description: >-
+        Çalıştırılacak fan. Fan bir röleye ya da akıllı prize bağlıysa Home Assistant onu anahtar olarak gösterir;
+        o zaman röleyi ya da prizi seç.
+      selector:
+        entity:
+          filter:
+            - domain:
+                - fan
+                - switch
+    acma_nemi:
+      name: Fanın çalışacağı nem
+      description: Nem bu değerin üstüne çıkınca fan çalışır.
+      default: 70
+      selector:
+        number:
+          min: 40
+          max: 95
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+    kapatma_nemi:
+      name: Fanın duracağı nem
+      description: Nem bu değerin altına inip 2 dakika öyle kalınca fan durur. Fanın çalışacağı nemden düşük olmalı.
+      default: 60
+      selector:
+        number:
+          min: 30
+          max: 90
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+    en_uzun_sure:
+      name: En uzun çalışma süresi
+      description: Nem düşmese de fan en çok bu kadar dakika çalışır, sonra durur.
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 240
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input nem_sensoru
+    above: !input acma_nemi
+
+actions:
+  - action: homeassistant.turn_on
+    target:
+      entity_id: !input fan
+  - wait_for_trigger:
+      - trigger: numeric_state
+        entity_id: !input nem_sensoru
+        below: !input kapatma_nemi
+        for:
+          minutes: 2
+    timeout:
+      minutes: !input en_uzun_sure
+  - action: homeassistant.turn_off
+    target:
+      entity_id: !input fan
