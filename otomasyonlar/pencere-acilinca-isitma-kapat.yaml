@@ -1,0 +1,31 @@
+alias: Pencere açılınca ısıtmayı kapat
+description: >-
+  Pencere 2 dakika açık kalınca açık olan kombiyi kapatır; pencere kapanınca eski moduna ve sıcaklığına döndürür.
+  (OtonomEv, O15)
+mode: single
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.salon_penceresi   # (pencere ya da balkon kapısı sensörü)
+    to: "on"
+    for:
+      minutes: 2   # (pencere kaç dakika açık kalsın)
+conditions:
+  - condition: state
+    entity_id: climate.kombi   # (klima, termostat ya da radyatör vanası)
+    state: [heat, cool, heat_cool, auto, dry, fan_only]
+actions:
+  - action: scene.create
+    data:
+      scene_id: pencere_acilmadan_once   # (her otomasyonda başka bir ad)
+      snapshot_entities:
+        - climate.kombi   # (yukarıdakiyle aynı)
+  - action: climate.turn_off
+    target:
+      entity_id: climate.kombi   # (yukarıdakiyle aynı)
+  - wait_for_trigger:
+      - trigger: state
+        entity_id: binary_sensor.salon_penceresi   # (yukarıdaki pencere)
+        to: "off"
+  - action: scene.turn_on
+    target:
+      entity_id: scene.pencere_acilmadan_once   # (scene. ve yukarıdaki ad)

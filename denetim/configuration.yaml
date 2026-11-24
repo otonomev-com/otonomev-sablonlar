@@ -182,4 +182,14 @@ automation sablonlar:
         isiklar:
           - switch.sus_isiklari
 
+  - id: denetim_pencere_acilinca_isitma_kapat
+    alias: "Denetim: Pencere açılınca ısıtmayı kapat"
+    use_blueprint:
+      path: otonomev/pencere-acilinca-isitma-kapat.yaml
+      input:
+        pencereler:
+          - binary_sensor.salon_penceresi
+        iklimlendirme:
+          - climate.kombi
+
 automation duz: !include_dir_list otomasyonlar

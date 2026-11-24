@@ -1,0 +1,94 @@
+blueprint:
+  name: Pencere açılınca klimayı ya da ısıtmayı kapat
+  description: >-
+    Seçtiğin pencerelerden biri belirlediğin süreden uzun açık kalınca açık olan klimayı, termostatı ya da radyatör
+    vanasını kapatır. İstersen bütün pencereler kapanınca hepsini eski moduna ve sıcaklığına döndürür.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/pencere-acilinca-isitma-kapat/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/pencere-acilinca-isitma-kapat.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    pencereler:
+      name: Pencere ya da kapı sensörü
+      description: Açılınca ısıtmanın kapanacağı pencereler ya da balkon kapısı. Odada birden çok pencere varsa hepsini seç.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - window
+                - door
+                - opening
+    iklimlendirme:
+      name: Klima, termostat ya da radyatör vanası
+      description: Pencere açık kalınca kapatılacak cihazlar. Yalnızca o anda açık olanlar kapatılır.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: climate
+    sure:
+      name: Bekleme süresi
+      description: >-
+        Pencere bu kadar dakika açık kalınca kapatılır. Pencereyi bir an açıp kapattığında ısıtma boşuna kapanmasın diye.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: dakika
+          mode: box
+    geri_ac:
+      name: Pencere kapanınca geri aç
+      description: >-
+        Açıksa bütün pencereler kapanınca kapatılan cihazlar eski moduna ve sıcaklığına döner. Kapalıysa cihazlar
+        kapalı kalır; sonra kendin açarsın.
+      default: true
+      selector:
+        boolean: {}
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input pencereler
+    to: "on"
+    for:
+      minutes: !input sure
+
+variables:
+  pencereler: !input pencereler
+  iklimlendirme: !input iklimlendirme
+  geri_ac: !input geri_ac
+  acik_olanlar: "{{ iklimlendirme | reject('is_state', ['off', 'unavailable', 'unknown']) | list }}"
+  sahne_kimligi: "otonomev_pencere_{{ this.entity_id.split('.')[1] }}"
+
+conditions:
+  - condition: template
+    value_template: "{{ acik_olanlar | count > 0 }}"
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ geri_ac }}"
+    then:
+      - action: scene.create
+        data:
+          scene_id: "{{ sahne_kimligi }}"
+          snapshot_entities: "{{ acik_olanlar }}"
+  - action: climate.turn_off
+    target:
+      entity_id: "{{ acik_olanlar }}"
+  - if:
+      - condition: template
+        value_template: "{{ geri_ac }}"
+    then:
+      - wait_template: "{{ pencereler | select('is_state', 'on') | list | count == 0 }}"
+      - action: scene.turn_on
+        target:
+          entity_id: "scene.{{ sahne_kimligi }}"
