@@ -1,0 +1,105 @@
+blueprint:
+  name: Üç zamanlı tarifede ucuz saatte çamaşır makinesini çalıştır
+  description: >-
+    Çamaşır makinesini akşam doldurup programını seçersin ve "Makine hazır" geçişini açarsın. Otomasyon makineyi
+    gece diliminde, seçtiğin saatte çalıştırır, geçişi kapatır ve telefonuna haber verir. Geçiş kapalıysa o gece bir
+    şey yapmaz. Üç zamanlı tarifede gece dilimi 22.00'de başlar; saati yaz saatine göre güncellenmemiş sayaçlarda
+    ekimin son pazarından martın son pazarına kadar 23.00'te başlar. Bu yüzden varsayılan saat 23.00'tür.
+    Anlatım ve sorun giderme: https://otonomev.com/otomasyonlar/gece-tarifesinde-camasir/
+  domain: automation
+  author: OtonomEv
+  source_url: https://raw.githubusercontent.com/otonomev-com/otonomev-sablonlar/main/blueprints/automation/otonomev/gece-tarifesinde-camasir.yaml
+  homeassistant:
+    min_version: "2026.11.0"
+  input:
+    makine:
+      name: Makineyi çalıştıran priz ya da düğme
+      description: >-
+        Makinenin takılı olduğu akıllı priz ya da makinenin Home Assistant'taki başlatma düğmesi. Priz seçersen
+        otomasyon onu açar; düğme seçersen ona basar.
+      selector:
+        entity:
+          filter:
+            - domain:
+                - switch
+                - button
+    hazir:
+      name: Makine hazır geçişi
+      description: >-
+        Makineyi doldurunca açtığın geçiş (yardımcı). Otomasyon makineyi yalnızca bu geçiş açıkken çalıştırır ve
+        çalıştırınca kapatır.
+      selector:
+        entity:
+          filter:
+            - domain: input_boolean
+    saat:
+      name: Başlama saati
+      description: Makine bu saatte çalışır. Gece diliminde (23.00 ile 06.00 arası) bir saat seç.
+      default: "23:00:00"
+      selector:
+        time: {}
+    bildirim:
+      name: Bildirim gidecek yer
+      description: >-
+        Telefonundaki Home Assistant uygulamasının bildirim varlığı (telefonunun adını taşır). Birden çok telefon
+        seçebilirsin.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+    gec_kurunca:
+      name: Geç kurarsan hemen çalıştır
+      description: >-
+        Geçişi başlama saatinden sonra, sabah 06.00'dan önce açarsan makine beklemeden çalışır. Kapalıysa ertesi
+        gece başlama saatini bekler.
+      default: true
+      selector:
+        boolean: {}
+
+mode: single
+
+variables:
+  makine: !input makine
+  gec_kurunca: !input gec_kurunca
+
+triggers:
+  - trigger: time
+    at: !input saat
+    id: saat
+  - trigger: state
+    entity_id: !input hazir
+    to: "on"
+    id: hazir
+
+conditions:
+  - condition: state
+    entity_id: !input hazir
+    state: "on"
+  - condition: time
+    after: !input saat
+    before: "06:00:00"
+  - condition: template
+    value_template: "{{ trigger.id == 'saat' or gec_kurunca }}"
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ makine.startswith('button.') }}"
+    then:
+      - action: button.press
+        target:
+          entity_id: !input makine
+    else:
+      - action: switch.turn_on
+        target:
+          entity_id: !input makine
+  - action: input_boolean.turn_off
+    target:
+      entity_id: !input hazir
+  - action: notify.send_message
+    target:
+      entity_id: !input bildirim
+    data:
+      title: Çamaşır makinesi çalıştı
+      message: "Gece dilimindesin; makine çalıştırıldı (saat {{ now().strftime('%H.%M') }})."

@@ -273,4 +273,14 @@ automation sablonlar:
         bildirim:
           - notify.telefon
 
+  - id: denetim_gece_tarifesinde_camasir
+    alias: "Denetim: Gece tarifesinde çamaşır makinesini çalıştır"
+    use_blueprint:
+      path: otonomev/gece-tarifesinde-camasir.yaml
+      input:
+        makine: switch.camasir_makinesi_prizi
+        hazir: input_boolean.makine_hazir
+        bildirim:
+          - notify.telefon
+
 automation duz: !include_dir_list otomasyonlar

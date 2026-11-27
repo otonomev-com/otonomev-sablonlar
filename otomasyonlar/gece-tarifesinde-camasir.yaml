@@ -1,0 +1,33 @@
+alias: Gece tarifesinde çamaşır makinesini çalıştır
+description: >-
+  "Makine hazır" geçişi açıksa çamaşır makinesinin prizini saat 23.00'te açar, geçişi kapatır ve telefonuna haber
+  verir. Geçişi 23.00'ten sonra, 06.00'dan önce açarsan makine hemen çalışır. (OtonomEv, O31)
+mode: single
+triggers:
+  - trigger: time
+    at: "23:00:00"   # (başlama saati)
+    id: saat
+  - trigger: state
+    entity_id: input_boolean.makine_hazir   # (Makine hazır geçişinin varlık kimliği)
+    to: "on"
+    id: hazir
+conditions:
+  - condition: state
+    entity_id: input_boolean.makine_hazir   # (yukarıdakinin aynısı)
+    state: "on"
+  - condition: time
+    after: "23:00:00"   # (başlama saatiyle aynı)
+    before: "06:00:00"   # (gece diliminin bittiği saat)
+actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.camasir_makinesi_prizi   # (makinenin takılı olduğu prizin varlık kimliği)
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.makine_hazir   # (yukarıdakinin aynısı)
+  - action: notify.send_message
+    target:
+      entity_id: notify.telefon   # (telefonunun bildirim varlığı)
+    data:
+      title: Çamaşır makinesi çalıştı
+      message: "Gece dilimindesin; makine çalıştırıldı (saat {{ now().strftime('%H.%M') }})."
